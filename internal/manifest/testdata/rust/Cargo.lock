@@ -1,0 +1,17 @@
+[[package]]
+name = "myapp"
+version = "0.1.0"
+dependencies = ["serde 1.0.196", "tokio 1.35.1", "reqwest 0.11.23"]
+
+[[package]]
+name = "serde"
+version = "1.0.196"
+
+[[package]]
+name = "tokio"
+version = "1.35.1"
+
+[[package]]
+name = "reqwest"
+version = "0.11.23"
+dependencies = ["tokio 1.35.1"]

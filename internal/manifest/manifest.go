@@ -16,6 +16,22 @@ const (
 	EcosystemNPM    Ecosystem = "npm"
 )
 
+// String returns the OSV-compatible ecosystem name.
+func (e Ecosystem) String() string {
+	switch e {
+	case EcosystemPython:
+		return "PyPI"
+	case EcosystemGo:
+		return "Go"
+	case EcosystemRust:
+		return "crates.io"
+	case EcosystemNPM:
+		return "npm"
+	default:
+		return string(e)
+	}
+}
+
 type ConstraintType string
 
 const (
