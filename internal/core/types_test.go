@@ -34,6 +34,20 @@ func TestFinalScore(t *testing.T) {
 	assert.Equal(t, 45, r2.FinalScore())
 }
 
+func TestFinalRisk(t *testing.T) {
+	r := core.PackageResult{OwnScore: 75, TransitiveRiskScore: 45}
+	assert.Equal(t, core.RiskHigh, r.FinalRisk()) // 45 → High
+}
+
+func TestScanResultPassedEmptyPackages(t *testing.T) {
+	empty := core.ScanResult{PassThreshold: 70, Packages: nil}
+	assert.False(t, empty.Passed(), "empty scan should not pass")
+}
+
+func TestRiskUnknownConstant(t *testing.T) {
+	assert.Equal(t, core.RiskLevel("UNKNOWN"), core.RiskUnknown)
+}
+
 func TestScanResultPassed(t *testing.T) {
 	passing := core.ScanResult{
 		PassThreshold: 70,

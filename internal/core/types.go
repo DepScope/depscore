@@ -10,6 +10,10 @@ const (
 	RiskUnknown  RiskLevel = "UNKNOWN"
 )
 
+// RiskLevelFromScore maps a score in [0, 100] to a RiskLevel.
+// Callers are responsible for clamping scores to [0, 100] before calling.
+// Scores outside this range are handled by the default case (≤39 → Critical, ≥80 → Low).
+// RiskUnknown is used by callers to represent a package whose score could not be computed.
 func RiskLevelFromScore(score int) RiskLevel {
 	switch {
 	case score >= 80:
@@ -75,6 +79,9 @@ type ScanResult struct {
 }
 
 func (s ScanResult) Passed() bool {
+	if len(s.Packages) == 0 {
+		return false
+	}
 	for _, p := range s.Packages {
 		if p.FinalScore() < s.PassThreshold {
 			return false
