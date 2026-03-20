@@ -24,7 +24,8 @@ It ships as:
 - Support for Python (pip/poetry/uv), Go (go.mod), Rust (Cargo.toml), JavaScript/TypeScript (npm/pnpm/bun); Java as future consideration
 - CI/CD-friendly: configurable pass threshold, exit codes, SARIF output
 - Configurable risk appetite via profiles (hobby / opensource / enterprise)
-- Open-source CVE data by default (OSV.dev, GitHub Advisory); paid sources (NVD, Snyk) optional via config/API key
+- Open-source CVE data by default (OSV.dev, GitHub Advisory); paid sources (NVD, Snyk) optional via config/API key in both CLI and server
+- OpenAPI specification for the HTTP API
 
 ---
 
@@ -43,10 +44,10 @@ depscope/
 │   │   ├── score.go            # score types, risk levels, thresholds
 │   │   └── propagator.go       # transitive risk propagation (bottom-up tree walk)
 │   ├── manifest/
-│   │   ├── python.go           # pip (requirements.txt), poetry (poetry.lock), uv (uv.lock)
-│   │   ├── go.go               # go.mod, go.sum
-│   │   ├── rust.go             # Cargo.toml, Cargo.lock
-│   │   └── javascript.go       # package.json, package-lock.json, pnpm-lock.yaml, bun.lockb
+│   │   ├── python.go           # pip (requirements.txt), poetry (pyproject.toml + poetry.lock), uv (uv.lock)
+│   │   ├── go.go               # go.mod (constraints) + go.sum (resolved versions)
+│   │   ├── rust.go             # Cargo.toml (constraints) + Cargo.lock (resolved versions)
+│   │   └── javascript.go       # package.json (constraints) + package-lock.json / pnpm-lock.yaml / bun.lockb
 │   ├── registry/
 │   │   ├── pypi.go             # PyPI API
 │   │   ├── goproxy.go          # pkg.go.dev / proxy.golang.org
@@ -56,9 +57,9 @@ depscope/
 │   │   └── github.go           # GitHub API: contributors, issues, commits, stars, archived
 │   ├── vuln/
 │   │   ├── osv.go              # OSV.dev (open, always available)
-│   │   └── nvd.go              # NVD (optional, requires API key)
+│   │   └── nvd.go              # NVD (optional, requires API key, available in both CLI and server)
 │   ├── cache/
-│   │   └── cache.go            # TTL-based, file-backed (~/.cache/depscope/), in-memory for server
+│   │   └── cache.go            # TTL-based cache; file-backed for CLI, configurable path for server
 │   ├── config/
 │   │   ├── config.go           # config loading, merging, env var resolution
 │   │   └── profiles.go         # hobby / opensource / enterprise presets
@@ -66,8 +67,27 @@ depscope/
 │       ├── text.go             # human-readable table + issue log
 │       ├── json.go             # full structured JSON report
 │       └── sarif.go            # SARIF for GitHub Security tab integration
+├── api/
+│   └── openapi.yaml            # OpenAPI 3.1 spec for the HTTP API
 └── web/                        # React frontend (separate repo or submodule)
 ```
+
+### Manifest Parsing Strategy
+
+Each ecosystem parser reads **two files**:
+
+| Ecosystem | Manifest (constraints) | Lockfile (resolved versions) |
+|-----------|------------------------|------------------------------|
+| Python (poetry) | `pyproject.toml` | `poetry.lock` |
+| Python (pip) | `requirements.txt` | `requirements.txt` (exact pins only) |
+| Python (uv) | `pyproject.toml` | `uv.lock` |
+| Go | `go.mod` | `go.sum` |
+| Rust | `Cargo.toml` | `Cargo.lock` |
+| JS/TS (npm) | `package.json` | `package-lock.json` |
+| JS/TS (pnpm) | `package.json` | `pnpm-lock.yaml` |
+| JS/TS (bun) | `package.json` | `bun.lockb` |
+
+The **manifest** provides constraint type (exact/patch/minor/major) used for version pinning scoring. The **lockfile** provides resolved exact versions used for all other scoring. Both files are always parsed together. If the lockfile is absent, constraints from the manifest are used and a warning is emitted.
 
 ### Data Flow
 
@@ -75,12 +95,13 @@ depscope/
 depscope scan <path>
       │
       ▼
- Manifest Parser        detects and parses lockfile/manifest
-      │ []Package{name, version, constraint, depth}
+ Manifest Parser        detects ecosystem, parses manifest + lockfile
+      │ []Package{name, resolved_version, constraint_type, depth}
       ▼
- Fetcher (cached)       parallel workers, rate-limited
+ Fetcher (cached)       parallel workers (default: 20 concurrent), rate-limited
       │                 registry APIs + GitHub API
       │                 cache TTL: metadata=24h, CVE=6h
+      │                 each unique package fetched exactly once per scan
       │ []PackageMetadata
       ▼
  Scorer                 computes own score per package
@@ -91,8 +112,8 @@ depscope scan <path>
       ▼
  Reporter               renders text / JSON / SARIF
       │
-      ├── exit 0  (all package scores ≥ pass_threshold)
-      └── exit 1  (any package score < pass_threshold)
+      ├── exit 0  (all package final scores ≥ pass_threshold)
+      └── exit 1  (any package final score < pass_threshold)
 ```
 
 The CLI and HTTP API server share the same `core`, `manifest`, `registry`, `vcs`, `vuln`, `cache`, and `report` packages. No logic is duplicated.
@@ -104,75 +125,106 @@ The CLI and HTTP API server share the same `core`, `manifest`, `registry`, `vcs`
 Each package receives two independent scores:
 
 ### Own Score (0–100)
-Measures the package's own health and reputation.
+Measures the package's own health and reputation. Higher = safer.
 
 | Factor | Enterprise Default Weight | Notes |
 |--------|--------------------------|-------|
 | Release recency | 20% | Last release age; >2 years = high risk |
 | Maintainer count | 15% | Solo maintainer increases risk |
-| Download velocity | 15% | Trend direction matters more than absolute count |
+| Download velocity | 15% | Trend direction matters more than absolute count; see ecosystem notes |
 | Open issue ratio | 10% | Open/closed ratio over time |
 | Org/company backing | 10% | Verified org vs anonymous individual |
-| Version pinning | 15% | Loose constraints on this package penalize the dependent |
+| Version pinning | 15% | Loose constraints declared by this package's dependents |
 | Repo health signals | 15% | Commit frequency, star trend, archived flag |
 
+**Ecosystem-specific scoring gaps:**
+
+- **Go:** The Go module proxy does not expose download counts. The `download_velocity` factor (15%) is skipped for Go packages; its weight is redistributed proportionally to the remaining factors.
+- **No VCS link:** If a package has no associated source repository, `repo_health` signals are skipped and the `org_backing` and `repo_health` factors receive a 15-point penalty combined. A warning is logged.
+
+**Partial weight overrides:** When a user overrides a subset of weights in config, the remaining weights are scaled proportionally so that all weights always sum to 100%. Example: if the user sets `release_recency: 40` and leaves others unchanged, the remaining 6 factors are scaled down proportionally from their 80% total.
+
 ### Transitive Risk Score (0–100)
-Worst-case risk propagated up from all dependencies, weighted by depth. Depth-1 deps carry more weight than depth-10 deps.
+Reflects the worst-case risk in the package's full dependency subtree, discounted by depth.
+
+**Formula:**
+
+```
+transitive_risk_score(P) = min over all descendant packages D at depth d:
+    clamp(D.own_score + (d - 1) × 5, 0, 100)
+```
+
+- A depth-1 dependency's own score is used directly (no discount)
+- Each additional depth level adds 5 points (making deeper packages less severe in propagation)
+- Example: a Critical package (own score 25) at depth 1 → effective score 25 (Critical); at depth 5 → 45 (High); at depth 10 → 70 (Medium)
+- The transitive risk level is derived from this score using the same thresholds as own score
+
+### Final Score (used for pass/fail)
+```
+final_score(P) = min(own_score(P), transitive_risk_score(P))
+```
+
+The `Score` column in the text output table is the **final score**. Pass/fail threshold is applied to the final score.
 
 ### Risk Levels
 
-| Own Score | Level |
-|-----------|-------|
+| Score | Level |
+|-------|-------|
 | 80–100 | Low |
 | 60–79 | Medium |
 | 40–59 | High |
 | 0–39 | Critical |
 
 ### Risk Propagation Rule
-If any package in the dependency tree is rated **High** or **Critical**, all direct dependents on that package are flagged in the issue log and their transitive risk score is elevated accordingly.
+If any package in the dependency tree is rated **High** or **Critical**, all direct dependents on that package are flagged in the issue log. Their transitive risk score is updated per the formula above.
 
 ### Version Pinning Risk
-Loose version constraints directly increase the risk score of the package declaring them. Risk levels by constraint type:
+Loose version constraints directly reduce the version pinning factor score of the **package that declares them** (i.e., the dependent, not the dependency). Parsed from the manifest file, not the lockfile.
 
-| Constraint | Risk impact |
-|------------|-------------|
-| Exact (`==1.2.3`, `=1.2.3`) | None |
-| Patch (`~=1.2.3`, `~1.2`) | Low |
-| Minor (`^1.2`, `>=1.2,<2`) | Medium |
-| Major / open (`>=1.0`, `*`) | High |
+| Constraint type | Pinning factor score | Example |
+|-----------------|----------------------|---------|
+| Exact | 100 (no penalty) | `==1.2.3`, `=1.2.3` |
+| Patch | 75 | `~=1.2.3`, `~1.2`, `1.2.*` |
+| Minor | 50 | `^1.2`, `>=1.2,<2.0` |
+| Major / open | 25 | `>=1.0`, `*`, `latest` |
 
-Loose pinning is both logged as an issue and increases the declaring package's own score penalty.
+Loose pinning is both logged as an issue and factors into the declaring package's own score via the version pinning weight.
 
 ---
 
 ## Risk Profiles
 
-Profiles are named presets for risk appetite. A user config file always overrides any profile value.
-
-```yaml
-profiles:
-  hobby:
-    pass_threshold: 40
-    weights:
-      maintainer_count: 5
-      org_backing: 5
-      release_recency: 15
-      # ...
-
-  opensource:
-    pass_threshold: 55
-    # balanced weights
-
-  enterprise:
-    pass_threshold: 70
-    # weights as per table above (default)
-```
+Profiles are named presets for risk appetite. A user config file always overrides any profile value. When a user partially overrides weights, remaining weights are renormalized to sum to 100%.
 
 **Default profile: enterprise.**
+
+| Profile | pass_threshold | Intended audience |
+|---------|---------------|-------------------|
+| hobby | 40 | Personal/hobby projects |
+| opensource | 55 | Open source projects |
+| enterprise | 70 | Production/enterprise code |
+
+Full weight tables for each profile are defined in `internal/config/profiles.go`. Key differences:
+- `hobby`: lower weight on `maintainer_count` (5%) and `org_backing` (5%), tolerates solo maintainers
+- `opensource`: balanced weights, moderate thresholds
+- `enterprise`: weights as per table above, strict threshold
 
 ---
 
 ## CLI Interface
+
+### Valid Ecosystem Identifiers
+
+Used with `depscope package check --ecosystem <value>`:
+
+| Value | Ecosystem |
+|-------|-----------|
+| `python` | PyPI (pip/poetry/uv) |
+| `go` | Go modules (pkg.go.dev) |
+| `rust` | crates.io |
+| `npm` | npm registry (JS/TS) |
+
+### Commands
 
 ```bash
 # Auto-detect manifest in current directory
@@ -194,7 +246,7 @@ depscope scan . --output sarif > depscope.sarif
 # Depth limit
 depscope scan . --depth 5
 
-# Verbose: full issue log
+# Verbose: full package metadata in addition to issue log
 depscope scan . --verbose
 
 # Single package lookup
@@ -224,15 +276,18 @@ weights:
   org_backing: 10
   version_pinning: 15
   repo_health: 15
+  # Partial overrides are valid; remaining weights are renormalized to sum to 100%
 
 vuln_sources:
-  osv: true
-  nvd: true
-  nvd_api_key: ${NVD_KEY}
+  osv: true               # OSV.dev, always available
+  nvd: true               # NVD, requires api_key
+  nvd_api_key: ${NVD_KEY} # resolved from environment variable
 
 registries:
-  github_token: ${GITHUB_TOKEN}
+  github_token: ${GITHUB_TOKEN}  # strongly recommended; without it, GitHub API limit is 60 req/hr
 ```
+
+**GitHub token note:** Without a GitHub token, the unauthenticated GitHub API rate limit (60 req/hr) will be exceeded on any scan with more than ~60 packages. A warning is emitted if no token is configured. Fallback: VCS signals are skipped and a penalty is applied to the `repo_health` factor.
 
 ### CI/CD Integration (GitHub Actions example)
 
@@ -241,6 +296,7 @@ registries:
   run: depscope scan . --profile enterprise --output sarif > depscope.sarif
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    NVD_KEY: ${{ secrets.NVD_KEY }}     # optional
 
 - uses: github/codeql-action/upload-sarif@v3
   with:
@@ -252,6 +308,8 @@ registries:
 ## Output Format
 
 ### Text (default)
+
+The `Score` column is the **final score** = min(own score, transitive risk score). This is the value compared against the pass threshold.
 
 ```
 depscope scan . — enterprise profile
@@ -280,10 +338,10 @@ Result: FAIL (1 package below threshold 70)
 Exit code: 1
 ```
 
-Every issue is always logged in full output. Summary mode (default) shows the table + issue list. `--verbose` adds full metadata per package.
+Every issue is always logged in full output. Default output shows the table + issue list. `--verbose` adds full package metadata (download counts, last release date, contributor list, etc.) per package.
 
 ### JSON
-Full structured report: dependency graph, per-package scores, issue list, metadata, scan configuration used.
+Full structured report: dependency graph, per-package scores (own + transitive + final), issue list, metadata, scan configuration used.
 
 ### SARIF
 Standard static analysis interchange format. Uploads directly to GitHub Security tab.
@@ -292,20 +350,27 @@ Standard static analysis interchange format. Uploads directly to GitHub Security
 
 ## Web UI & API
 
-### HTTP API
+### OpenAPI Specification
+The HTTP API is defined in `api/openapi.yaml` (OpenAPI 3.1). This serves as the contract between the server and web UI, enables client SDK generation, and is published at `https://depscope.com/api/docs`.
+
+### HTTP API Endpoints
 
 ```
 POST /api/scan
-  body: { "github_url": "...", "profile": "enterprise" }
+  body: { "github_url": "https://github.com/owner/repo", "profile": "enterprise" }
   returns: { "job_id": "abc123", "status": "queued" }
 
 GET  /api/scan/:jobId
-  returns: job status + full JSON report when complete
+  returns: job status ("queued" | "running" | "complete" | "failed") + full JSON report when complete
 
 GET  /api/package/:ecosystem/:name/:version
+  path params: ecosystem = python | go | rust | npm
   returns: single package score + issues
 
 GET  /api/health
+
+GET  /api/docs
+  returns: OpenAPI spec (Swagger UI)
 ```
 
 Scans are async (job queue) because deep recursive scans can take 10–30 seconds.
@@ -316,8 +381,8 @@ Scans are async (job queue) because deep recursive scans can take 10–30 second
 - Live progress indicator (SSE or polling)
 - Interactive dependency tree, color-coded by risk level
 - Expandable nodes showing transitive deps and issue log
-- Shareable result URLs: `depscope.com/scan/abc123`
-- README badge generator: `![depscope score](depscope.com/badge/owner/repo.svg)`
+- Shareable result URLs: `https://depscope.com/scan/abc123`
+- README badge generator: `![depscope score](https://depscope.com/badge/owner/repo.svg)`
 
 The badge is a key marketing mechanism — repos using it link back to depscope.com.
 
@@ -325,30 +390,43 @@ The badge is a key marketing mechanism — repos using it link back to depscope.
 
 ## Caching
 
-- **File-backed** (`~/.cache/depscope/`) for CLI — persists across runs
-- **In-memory + disk** for the server
+### CLI
+- File-backed at `~/.cache/depscope/`
+- Persists across CLI runs
 - TTL defaults: registry metadata = 24h, CVE data = 6h
-- Both TTLs are configurable
-- A package seen multiple times in the tree is fetched exactly once per scan
+
+### Server
+- Disk-backed at a configurable path (default: OS temp dir + `/depscope-cache/`)
+- Maximum cache size: 10 GB (LRU eviction when limit is reached)
+- Same TTL defaults as CLI; configurable per-deployment
+
+### Shared rules
+- Both TTLs are configurable in `depscope.yaml`
+- A package seen multiple times in the tree is fetched exactly once per scan (in-memory deduplication within a single scan run)
 
 ---
 
 ## Error Handling
 
-- Registry API failures: log as a warning, mark package score as `unknown`, do not fail the whole scan
-- Missing GitHub token: repo health signals are skipped, score penalized slightly, warning logged
-- Depth limit reached: logged as `[INFO]` with count of packages not scanned beyond the limit
-- CVE source unavailable: logged as warning, scan continues without that source
+- **Registry API failure:** log warning, mark package score as `unknown`, do not fail the whole scan
+- **No GitHub token:** warn that large scans will hit the unauthenticated rate limit (60 req/hr); VCS signals are skipped and `repo_health` factor takes a 15-point penalty
+- **GitHub API rate limit hit mid-scan:** remaining packages skip VCS signals with a warning; scan completes with reduced accuracy noted in output
+- **No VCS link for a package:** skip `repo_health` signals; apply combined 15-point penalty across `org_backing` and `repo_health` factors; log `[INFO]`
+- **Depth limit reached:** log `[INFO]` with count of packages not scanned beyond the limit
+- **CVE source unavailable:** log warning, scan continues without that source
+- **Missing lockfile (manifest only):** log warning, use manifest constraints for version pinning scoring, resolved versions are unknown
 
 ---
 
 ## Testing Strategy
 
 - Unit tests for each scorer factor in isolation (mock registry responses)
-- Integration tests for each manifest parser against real lockfile fixtures
+- Unit tests for the transitive propagation formula with known trees
+- Unit tests for partial weight override normalization
+- Integration tests for each manifest parser against real lockfile + manifest fixture pairs
 - Integration tests for registry clients against recorded HTTP responses (golden files)
-- End-to-end CLI test: run `depscope scan` against a known fixture project, assert exit code and JSON output
-- Profile tests: verify that the same package scores differently across profiles
+- End-to-end CLI test: run `depscope scan` against a known fixture project, assert exit code and JSON output match expected values
+- Profile tests: verify that the same package scores differently across all three profiles
 
 ---
 
@@ -358,4 +436,3 @@ The badge is a key marketing mechanism — repos using it link back to depscope.
 - Private registry support (future)
 - Historical trend tracking / score over time (future)
 - GitHub App / PR comment integration (future)
-- Paid CVE sources in CLI (web/API only in v1, then unlocked via config key)
