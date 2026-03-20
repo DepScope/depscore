@@ -82,23 +82,32 @@ func LoadFile(path string) (Config, error) {
 }
 
 // WithWeights applies partial weight overrides and renormalizes all weights to sum to 100.
+// Keys in overrides that are not in FactorNames are silently ignored.
 func (c Config) WithWeights(overrides Weights) Config {
+	// Build a set of valid factor names for O(1) lookup
+	validFactors := make(map[string]bool, len(FactorNames))
+	for _, n := range FactorNames {
+		validFactors[n] = true
+	}
+
 	total := 0
-	for _, v := range overrides {
-		total += v
+	for k, v := range overrides {
+		if validFactors[k] {
+			total += v
+		}
 	}
 	if total > 100 {
 		return c // overrides invalid, return unchanged
 	}
 
 	merged := make(Weights, len(c.Weights))
-	for k, v := range overrides {
-		merged[k] = v
-	}
-
 	overriddenSum := 0
-	for _, v := range overrides {
+	for k, v := range overrides {
+		if !validFactors[k] {
+			continue // ignore unknown factor names
+		}
 		overriddenSum += v
+		merged[k] = v
 	}
 
 	baseRemaining := 0

@@ -84,6 +84,25 @@ func TestFactorNamesMatchProfileKeys(t *testing.T) {
 	}
 }
 
+func TestWithWeightsIgnoresUnknownKeys(t *testing.T) {
+	cfg := config.Enterprise()
+	overridden := cfg.WithWeights(config.Weights{
+		"release_recency": 30,
+		"nonexistent_key": 50, // unknown factor — should be ignored
+	})
+	// unknown key must not appear in result
+	_, exists := overridden.Weights["nonexistent_key"]
+	assert.False(t, exists, "unknown override key should be ignored")
+	// sum must still be 100
+	sum := 0
+	for _, v := range overridden.Weights {
+		sum += v
+	}
+	assert.Equal(t, 100, sum)
+	// overriding key must be applied
+	assert.Equal(t, 30, overridden.Weights["release_recency"])
+}
+
 func TestProfileByName(t *testing.T) {
 	tests := []struct {
 		name string
