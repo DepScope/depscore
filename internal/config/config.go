@@ -19,10 +19,14 @@ func ResolveEnv(v string) string {
 	return v
 }
 
-var factorNames = []string{
+// FactorNames is the canonical ordered list of scoring factor keys.
+var FactorNames = []string{
 	"release_recency", "maintainer_count", "download_velocity",
 	"open_issue_ratio", "org_backing", "version_pinning", "repo_health",
 }
+
+// factorNames is an alias kept for internal use.
+var factorNames = FactorNames
 
 // LoadFile reads a YAML config file via Viper and merges it onto the named profile.
 // The profile field in the file determines the base profile; explicit fields override it.

@@ -2,16 +2,7 @@ profile: enterprise
 pass_threshold: 75
 max_depth: 8
 weights:
-  release_recency: 20
-  maintainer_count: 15
-  download_velocity: 15
-  open_issue_ratio: 10
-  org_backing: 10
-  version_pinning: 15
-  repo_health: 15
-cache:
-  metadata_hours: 24
-  vuln_hours: 6
+  release_recency: 30
 vuln:
   osv: true
   nvd: false

@@ -56,11 +56,32 @@ func TestLoadFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 75, cfg.PassThreshold)
 	assert.Equal(t, "enterprise", cfg.Profile)
+	assert.Equal(t, 30, cfg.Weights["release_recency"])
 	sum := 0
 	for _, v := range cfg.Weights {
 		sum += v
 	}
 	assert.Equal(t, 100, sum, "loaded weights should sum to 100")
+	for k, v := range cfg.Weights {
+		assert.GreaterOrEqual(t, v, 0, "weight %s should be non-negative", k)
+	}
+}
+
+func TestFactorNamesMatchProfileKeys(t *testing.T) {
+	cfg := config.Enterprise()
+	// Check every factorName exists as a weight key
+	for _, name := range config.FactorNames {
+		_, ok := cfg.Weights[name]
+		assert.True(t, ok, "factorNames contains %q but it is not a key in Enterprise weights", name)
+	}
+	// Check every weight key has a corresponding factorName
+	nameSet := make(map[string]bool, len(config.FactorNames))
+	for _, n := range config.FactorNames {
+		nameSet[n] = true
+	}
+	for k := range cfg.Weights {
+		assert.True(t, nameSet[k], "Enterprise weights contains %q but it is not in factorNames", k)
+	}
 }
 
 func TestProfileByName(t *testing.T) {
