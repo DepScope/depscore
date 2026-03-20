@@ -1,9 +1,22 @@
 profile: enterprise
 pass_threshold: 75
-depth: 10
-registries:
-  github_token: ${GITHUB_TOKEN}
-vuln_sources:
+max_depth: 8
+weights:
+  release_recency: 20
+  maintainer_count: 15
+  download_velocity: 15
+  open_issue_ratio: 10
+  org_backing: 10
+  version_pinning: 15
+  repo_health: 15
+cache:
+  metadata_hours: 24
+  vuln_hours: 6
+vuln:
   osv: true
-  nvd: true
-  nvd_api_key: ${NVD_KEY}
+  nvd: false
+reg:
+  py_pi: "https://pypi.org"
+  npm: "https://registry.npmjs.org"
+  crates: "https://crates.io"
+  go_proxy: "https://proxy.golang.org"

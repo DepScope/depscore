@@ -19,6 +19,11 @@ func ResolveEnv(v string) string {
 	return v
 }
 
+var factorNames = []string{
+	"release_recency", "maintainer_count", "download_velocity",
+	"open_issue_ratio", "org_backing", "version_pinning", "repo_health",
+}
+
 // LoadFile reads a YAML config file via Viper and merges it onto the named profile.
 // The profile field in the file determines the base profile; explicit fields override it.
 func LoadFile(path string) (Config, error) {
@@ -34,11 +39,8 @@ func LoadFile(path string) (Config, error) {
 	if v.IsSet("pass_threshold") {
 		cfg.PassThreshold = v.GetInt("pass_threshold")
 	}
-	if v.IsSet("depth") {
-		cfg.Depth = v.GetInt("depth")
-	}
-	if v.IsSet("concurrency") {
-		cfg.Concurrency = v.GetInt("concurrency")
+	if v.IsSet("max_depth") {
+		cfg.MaxDepth = v.GetInt("max_depth")
 	}
 	if v.IsSet("weights") {
 		overrides := Weights{}
@@ -52,13 +54,25 @@ func LoadFile(path string) (Config, error) {
 		}
 	}
 
-	cfg.VulnSources = VulnSources{
-		OSV:       v.GetBool("vuln_sources.osv"),
-		NVD:       v.GetBool("vuln_sources.nvd"),
-		NVDAPIKey: ResolveEnv(v.GetString("vuln_sources.nvd_api_key")),
+	if v.IsSet("cache") {
+		cfg.Cache = CacheTTL{
+			MetadataHours: v.GetInt("cache.metadata_hours"),
+			VulnHours:     v.GetInt("cache.vuln_hours"),
+		}
 	}
-	cfg.Registries = Registries{
-		GitHubToken: ResolveEnv(v.GetString("registries.github_token")),
+	if v.IsSet("vuln") {
+		cfg.Vuln = VulnSources{
+			OSV: v.GetBool("vuln.osv"),
+			NVD: v.GetBool("vuln.nvd"),
+		}
+	}
+	if v.IsSet("reg") {
+		cfg.Reg = Registries{
+			PyPI:    ResolveEnv(v.GetString("reg.py_pi")),
+			NPM:     ResolveEnv(v.GetString("reg.npm")),
+			Crates:  ResolveEnv(v.GetString("reg.crates")),
+			GoProxy: ResolveEnv(v.GetString("reg.go_proxy")),
+		}
 	}
 	return cfg, nil
 }

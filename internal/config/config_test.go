@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/depscope/depscope/internal/config"
@@ -40,19 +39,32 @@ func TestPartialWeightOverrideRenormalizes(t *testing.T) {
 }
 
 func TestEnvVarResolution(t *testing.T) {
-	os.Setenv("TEST_DEPSCOPE_TOKEN", "secret123")
-	defer os.Unsetenv("TEST_DEPSCOPE_TOKEN")
+	t.Setenv("TEST_DEPSCOPE_TOKEN", "secret123")
 	assert.Equal(t, "secret123", config.ResolveEnv("${TEST_DEPSCOPE_TOKEN}"))
 	assert.Equal(t, "literal", config.ResolveEnv("literal"))
 }
 
 func TestLoadFile(t *testing.T) {
-	os.Setenv("GITHUB_TOKEN", "ghp_test")
-	defer os.Unsetenv("GITHUB_TOKEN")
-
 	cfg, err := config.LoadFile("testdata/depscope.yaml")
 	require.NoError(t, err)
 	assert.Equal(t, 75, cfg.PassThreshold)
 	assert.Equal(t, "enterprise", cfg.Profile)
-	assert.Equal(t, "ghp_test", cfg.Registries.GitHubToken)
+}
+
+func TestProfileByName(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"hobby", "hobby"},
+		{"opensource", "opensource"},
+		{"enterprise", "enterprise"},
+		{"unknown", "enterprise"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.ProfileByName(tt.name)
+			assert.Equal(t, tt.want, cfg.Profile)
+		})
+	}
 }
