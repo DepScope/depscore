@@ -1,0 +1,31 @@
+{
+  "vulns": [
+    {
+      "id": "GHSA-j8r2-6x86-q33q",
+      "summary": "Requests forwards proxy-authorization to destination servers",
+      "severity": [
+        {
+          "type": "CVSS_V3",
+          "score": "6.1"
+        }
+      ],
+      "affected": [
+        {
+          "package": {
+            "name": "requests",
+            "ecosystem": "PyPI"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {"introduced": "0"},
+                {"fixed": "2.31.0"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
