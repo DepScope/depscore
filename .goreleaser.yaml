@@ -1,0 +1,19 @@
+version: 2
+project_name: depscope
+
+builds:
+  - id: depscope
+    main: ./cmd/depscope
+    binary: depscope
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
