@@ -79,6 +79,14 @@ func LoadFile(path string) (Config, error) {
 
 // WithWeights applies partial weight overrides and renormalizes all weights to sum to 100.
 func (c Config) WithWeights(overrides Weights) Config {
+	total := 0
+	for _, v := range overrides {
+		total += v
+	}
+	if total > 100 {
+		return c // overrides invalid, return unchanged
+	}
+
 	merged := make(Weights, len(c.Weights))
 	for k, v := range overrides {
 		merged[k] = v
@@ -108,13 +116,13 @@ func (c Config) WithWeights(overrides Weights) Config {
 		}
 	}
 
-	// Fix rounding drift: assign remainder to first non-overridden factor
-	total := 0
+	// Fix rounding drift: assign remainder to first non-overridden factor (deterministic order)
+	sum := 0
 	for _, v := range merged {
-		total += v
+		sum += v
 	}
-	if diff := 100 - total; diff != 0 {
-		for k := range c.Weights {
+	if diff := 100 - sum; diff != 0 {
+		for _, k := range factorNames {
 			if _, ok := overrides[k]; !ok {
 				merged[k] += diff
 				break
