@@ -430,6 +430,41 @@ The badge is a key marketing mechanism — repos using it link back to depscope.
 
 ---
 
+## Dependencies & Libraries
+
+| Purpose | Library | Notes |
+|---------|---------|-------|
+| CLI commands & config | `github.com/spf13/cobra` + `github.com/spf13/viper` | Industry standard |
+| go.mod parsing | `golang.org/x/mod/modfile` | Official Go toolchain package |
+| TOML (Cargo.toml, Cargo.lock, poetry.lock, uv.lock) | `github.com/pelletier/go-toml/v2` | TOML 1.0.0 compliant |
+| YAML (pnpm-lock.yaml) | `github.com/goccy/go-yaml` | Better error reporting than go-yaml/yaml |
+| GitHub API | `github.com/google/go-github` | Official Google client |
+| OSV.dev CVE data | `osv.dev/bindings/go/osvdev` | Official OSV bindings |
+| SARIF output | `github.com/owenrumney/go-sarif/v3` | SARIF 2.1.0 |
+| Concurrency / semaphore | `golang.org/x/sync/semaphore` | Rate-limit parallel fetches |
+| Terminal table output | `github.com/olekukonko/tablewriter` | ASCII/Unicode tables |
+| HTTP server | stdlib `net/http` (Go 1.22+) | Built-in routing is sufficient |
+
+**Built from scratch** (using stdlib + above libs for decode only):
+- Registry API clients: PyPI, npm, crates.io, Go proxy, NVD — thin `net/http` wrappers
+- Scoring engine, propagator, cache layer, report formatters
+
+**bun.lockb:** Bun v1.2+ uses a text-based `bun.lock` (JSONC). Support that format; fall back to `package.json` if absent. Binary `bun.lockb` is not supported in v1.
+
+## Build & Release
+
+- **Go version:** 1.22+ (required for stdlib HTTP routing)
+- **Releases:** `goreleaser` — cross-platform binaries (Linux/macOS/Windows, amd64/arm64), published to GitHub Releases
+- **Server job storage:** In-memory map for v1; jobs expire after 24h, no persistence required for the marketing demo site
+
+## Test Data Strategy
+
+- **Golden files** for all registry API clients — recorded HTTP responses in `testdata/`, tests never hit live APIs
+- **Real lockfile fixtures** sourced from well-known open source projects for each ecosystem
+- Fixture set includes both healthy and high-risk examples to validate scoring behavior
+
+---
+
 ## Out of Scope (v1)
 
 - Java / Maven support (future)
