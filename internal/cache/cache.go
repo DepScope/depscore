@@ -66,10 +66,13 @@ func (c *DiskCache) Clear() error {
 	if err != nil {
 		return err
 	}
+	var lastErr error
 	for _, e := range entries {
-		_ = os.Remove(filepath.Join(c.dir, e.Name()))
+		if removeErr := os.Remove(filepath.Join(c.dir, e.Name())); removeErr != nil {
+			lastErr = removeErr
+		}
 	}
-	return nil
+	return lastErr
 }
 
 func (c *DiskCache) Status() (count int, bytes int64, err error) {
@@ -81,9 +84,11 @@ func (c *DiskCache) Status() (count int, bytes int64, err error) {
 		return 0, 0, err
 	}
 	for _, e := range entries {
-		if info, _ := e.Info(); info != nil {
-			bytes += info.Size()
+		info, infoErr := e.Info()
+		if infoErr != nil {
+			continue // file may have been removed between ReadDir and Info
 		}
+		bytes += info.Size()
 		count++
 	}
 	return count, bytes, nil
