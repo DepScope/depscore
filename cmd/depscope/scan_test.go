@@ -41,6 +41,15 @@ func TestScanCommandOutputsTable(t *testing.T) {
 	assert.Contains(t, out, "urllib3")
 }
 
+func TestIsGitURL(t *testing.T) {
+	assert.True(t, isGitURL("https://github.com/user/repo"))
+	assert.True(t, isGitURL("http://github.com/user/repo"))
+	assert.True(t, isGitURL("git@github.com:user/repo.git"))
+	assert.False(t, isGitURL("."))
+	assert.False(t, isGitURL("/home/user/project"))
+	assert.False(t, isGitURL("./relative/path"))
+}
+
 func TestScanCommandJSON(t *testing.T) {
 	cfg := config.Hobby()
 	var stdout bytes.Buffer

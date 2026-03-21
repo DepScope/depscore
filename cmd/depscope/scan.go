@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -171,6 +173,16 @@ func runScan(cmd *cobra.Command, args []string) error {
 		dir = args[0]
 	}
 
+	// Handle git URLs
+	if isGitURL(dir) {
+		tmpDir, err := cloneRepo(dir)
+		if err != nil {
+			return fmt.Errorf("clone %s: %w", dir, err)
+		}
+		defer os.RemoveAll(tmpDir)
+		dir = tmpDir
+	}
+
 	cfg, err := loadConfig(cmd)
 	if err != nil {
 		return err
@@ -178,4 +190,23 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	outputFmt, _ := cmd.Flags().GetString("output")
 	return scanDeps(os.Stdout, dir, cfg, outputFmt, nil)
+}
+
+func isGitURL(s string) bool {
+	return strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "git@")
+}
+
+func cloneRepo(url string) (string, error) {
+	tmpDir, err := os.MkdirTemp("", "depscope-scan-*")
+	if err != nil {
+		return "", err
+	}
+
+	cmd := exec.Command("git", "clone", "--depth=1", url, tmpDir)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		os.RemoveAll(tmpDir)
+		return "", fmt.Errorf("git clone failed: %w", err)
+	}
+	return tmpDir, nil
 }
