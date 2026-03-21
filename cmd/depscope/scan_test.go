@@ -30,7 +30,7 @@ func (f *testFetcher) Ecosystem() string { return "python" }
 func TestScanCommandOutputsTable(t *testing.T) {
 	cfg := config.Hobby()
 	var stdout bytes.Buffer
-	err := scanDeps(&stdout, "testdata/fixture-python", cfg, "text", &testFetcher{})
+	err := scanDeps(&stdout, "testdata/fixture-python", cfg, "text", "", false, &testFetcher{})
 	// May return exitError{1} if below threshold -- that's OK
 	if err != nil {
 		var ee exitError
@@ -53,7 +53,7 @@ func TestIsGitURL(t *testing.T) {
 func TestScanCommandJSON(t *testing.T) {
 	cfg := config.Hobby()
 	var stdout bytes.Buffer
-	err := scanDeps(&stdout, "testdata/fixture-python", cfg, "json", &testFetcher{})
+	err := scanDeps(&stdout, "testdata/fixture-python", cfg, "json", "", false, &testFetcher{})
 	if err != nil {
 		var ee exitError
 		require.ErrorAs(t, err, &ee)
