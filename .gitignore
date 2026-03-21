@@ -1,3 +1,5 @@
 .worktrees/
 bin/
 dist/
+# Ignore compiled binary, not the source directory
+/bin/depscope
