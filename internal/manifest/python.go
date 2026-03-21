@@ -88,8 +88,15 @@ func (p *PythonParser) parseRequirements(path string) ([]Package, error) {
 			continue
 		}
 		name, constraint := splitRequirement(line)
+		// Extract resolved version from exact constraints like ==2.31.0
+		resolved := ""
+		if strings.HasPrefix(constraint, "==") {
+			resolved = strings.TrimPrefix(constraint, "==")
+		} else if strings.HasPrefix(constraint, "=") && !strings.HasPrefix(constraint, ">=") {
+			resolved = strings.TrimPrefix(constraint, "=")
+		}
 		pkgs = append(pkgs, Package{
-			Name: name, Constraint: constraint,
+			Name: name, ResolvedVersion: resolved, Constraint: constraint,
 			ConstraintType: ParseConstraintType(constraint),
 			Ecosystem: EcosystemPython, Depth: 1,
 		})

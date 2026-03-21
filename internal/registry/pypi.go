@@ -37,12 +37,14 @@ func (c *PyPIClient) Fetch(name, version string) (*PackageInfo, error) {
 
 	var data struct {
 		Info struct {
-			Name        string            `json:"name"`
-			Maintainer  string            `json:"maintainer"`
-			Author      string            `json:"author"`
-			HomePage    string            `json:"home_page"`
-			ProjectURLs map[string]string `json:"project_urls"`
-			Classifiers []string          `json:"classifiers"`
+			Name            string            `json:"name"`
+			Maintainer      string            `json:"maintainer"`
+			MaintainerEmail string            `json:"maintainer_email"`
+			Author          string            `json:"author"`
+			AuthorEmail     string            `json:"author_email"`
+			HomePage        string            `json:"home_page"`
+			ProjectURLs     map[string]string `json:"project_urls"`
+			Classifiers     []string          `json:"classifiers"`
 		} `json:"info"`
 		Releases map[string][]struct {
 			UploadTime string `json:"upload_time"`
@@ -58,16 +60,13 @@ func (c *PyPIClient) Fetch(name, version string) (*PackageInfo, error) {
 		Ecosystem: "python",
 	}
 
-	// Count maintainers
+	// Count maintainers from all available fields
 	maintainers := make(map[string]bool)
-	for _, m := range strings.Split(data.Info.Maintainer, ",") {
-		if s := strings.TrimSpace(m); s != "" {
-			maintainers[s] = true
-		}
-	}
-	for _, a := range strings.Split(data.Info.Author, ",") {
-		if s := strings.TrimSpace(a); s != "" {
-			maintainers[s] = true
+	for _, field := range []string{data.Info.Maintainer, data.Info.MaintainerEmail, data.Info.Author, data.Info.AuthorEmail} {
+		for _, m := range strings.Split(field, ",") {
+			if s := strings.TrimSpace(m); s != "" {
+				maintainers[s] = true
+			}
 		}
 	}
 	info.MaintainerCount = len(maintainers)
@@ -75,10 +74,14 @@ func (c *PyPIClient) Fetch(name, version string) (*PackageInfo, error) {
 		info.MaintainerCount = 1 // assume at least 1
 	}
 
-	// Source repo URL
-	if src, ok := data.Info.ProjectURLs["Source"]; ok {
-		info.SourceRepoURL = src
-	} else {
+	// Source repo URL — PyPI uses various key names
+	for _, key := range []string{"Source", "Source Code", "Repository", "Homepage", "Home"} {
+		if src, ok := data.Info.ProjectURLs[key]; ok && src != "" {
+			info.SourceRepoURL = src
+			break
+		}
+	}
+	if info.SourceRepoURL == "" {
 		info.SourceRepoURL = data.Info.HomePage
 	}
 

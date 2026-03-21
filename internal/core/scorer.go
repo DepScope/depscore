@@ -81,9 +81,15 @@ func Score(pkg manifest.Package, fr *FetchResult, weights config.Weights) Packag
 
 	var allIssues []Issue
 	for _, fs := range factors {
-		allIssues = append(allIssues, fs.issues...)
+		for _, iss := range fs.issues {
+			iss.Package = pkg.Name
+			allIssues = append(allIssues, iss)
+		}
 	}
-	allIssues = append(allIssues, vulnIssues...)
+	for _, iss := range vulnIssues {
+		iss.Package = pkg.Name
+		allIssues = append(allIssues, iss)
+	}
 
 	return PackageResult{
 		Name:                pkg.Name,
