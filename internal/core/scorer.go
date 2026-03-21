@@ -95,6 +95,7 @@ func Score(pkg manifest.Package, fr *FetchResult, weights config.Weights) Packag
 		Name:                pkg.Name,
 		Version:             pkg.ResolvedVersion,
 		Ecosystem:           string(pkg.Ecosystem),
+		Constraint:          pkg.Constraint,
 		ConstraintType:      string(pkg.ConstraintType),
 		Depth:               pkg.Depth,
 		OwnScore:            ownScore,

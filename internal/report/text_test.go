@@ -25,6 +25,12 @@ func TestTextReportContainsPackageNames(t *testing.T) {
 	assert.Contains(t, out, "requests")
 	assert.Contains(t, out, "urllib3")
 	assert.Contains(t, out, "Score:")
+	// requests has ==2.31.0 constraint which matches resolved → just show version
+	assert.Contains(t, out, "requests 2.31.0")
+	// urllib3 has >=1.26 constraint which differs from 2.0.7 → show constraint → resolved
+	assert.Contains(t, out, "urllib3 >=1.26 \u2192 2.0.7")
+	// Should NOT contain the old (minor) format
+	assert.NotContains(t, out, "(minor)")
 }
 
 func TestTextReportTreeConnectors(t *testing.T) {

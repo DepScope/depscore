@@ -17,6 +17,7 @@ type jsonPackage struct {
 	Name                string      `json:"name"`
 	Version             string      `json:"version"`
 	Ecosystem           string      `json:"ecosystem"`
+	Constraint          string      `json:"constraint,omitempty"`
 	ConstraintType      string      `json:"constraint_type"`
 	Depth               int         `json:"depth"`
 	OwnScore            int         `json:"own_score"`
@@ -58,6 +59,7 @@ func WriteJSON(w io.Writer, result core.ScanResult) error {
 			Name:                p.Name,
 			Version:             p.Version,
 			Ecosystem:           p.Ecosystem,
+			Constraint:          p.Constraint,
 			ConstraintType:      p.ConstraintType,
 			Depth:               p.Depth,
 			OwnScore:            p.OwnScore,

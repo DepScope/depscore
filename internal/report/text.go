@@ -42,7 +42,8 @@ func WriteText(w io.Writer, result core.ScanResult) {
 			if pkg.VulnCount > 0 {
 				vuln = fmt.Sprintf(" | %d CVE", pkg.VulnCount)
 			}
-			fmt.Fprintf(w, "  %s %s [Score: %d | Risk: %s%s]\n", pkg.Name, pkg.Version, score, risk, vuln)
+			versionStr := formatVersion(pkg.Constraint, pkg.Version)
+			fmt.Fprintf(w, "  %s %s [Score: %d | Risk: %s%s]\n", pkg.Name, versionStr, score, risk, vuln)
 		}
 	} else {
 		// Print tree
@@ -93,13 +94,10 @@ func printTree(w io.Writer, name string, prefix string, isLast bool, byName map[
 	if pkg.VulnCount > 0 {
 		vuln = fmt.Sprintf(" | %d CVE", pkg.VulnCount)
 	}
-	constraint := ""
-	if pkg.ConstraintType != "" && pkg.ConstraintType != "exact" {
-		constraint = fmt.Sprintf(" (%s)", pkg.ConstraintType)
-	}
+	versionStr := formatVersion(pkg.Constraint, pkg.Version)
 
-	fmt.Fprintf(w, "%s%s%s %s [Score: %d | Risk: %s%s]%s\n",
-		prefix, connector, name, pkg.Version, score, risk, vuln, constraint)
+	fmt.Fprintf(w, "%s%s%s %s [Score: %d | Risk: %s%s]\n",
+		prefix, connector, name, versionStr, score, risk, vuln)
 
 	// Prevent infinite loops from circular deps
 	if visited[name] {
@@ -123,4 +121,18 @@ func printTree(w io.Writer, name string, prefix string, isLast bool, byName map[
 	}
 
 	delete(visited, name) // allow same package to appear in different subtrees
+}
+
+// formatVersion builds the version display string.
+// When the constraint differs from the resolved version (and is not an exact pin),
+// show "constraint → resolved". Otherwise just show the resolved version.
+func formatVersion(constraint, version string) string {
+	if constraint == "" {
+		return version
+	}
+	// Exact pins: constraint equals "=<version>" or "==<version>" or is the bare version
+	if constraint == version || constraint == "="+version || constraint == "=="+version {
+		return version
+	}
+	return fmt.Sprintf("%s \u2192 %s", constraint, version)
 }

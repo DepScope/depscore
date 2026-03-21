@@ -47,6 +47,7 @@ type PackageResult struct {
 	Name                string
 	Version             string
 	Ecosystem           string
+	Constraint          string // the manifest constraint string (e.g., ">=1.26", "^2.0", "==2.31.0")
 	ConstraintType      string
 	Depth               int
 	OwnScore            int
