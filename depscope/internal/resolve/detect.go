@@ -83,17 +83,7 @@ func extractHost(rawURL string) string {
 	return u.Host
 }
 
-// Stub resolvers — replaced in Tasks 4-5 with real implementations.
-
-type gitlabResolver struct{ token string }
-
-func NewGitLabResolver(token string, opts ...Option) TypedResolver {
-	return &gitlabResolver{token: token}
-}
-func (r *gitlabResolver) Type() string { return "gitlab" }
-func (r *gitlabResolver) Resolve(ctx context.Context, url string) ([]ManifestFile, func(), error) {
-	return nil, func() {}, nil
-}
+// gitCloneResolver is a stub — replaced in Task 5 with a real implementation.
 
 type gitCloneResolver struct{}
 
