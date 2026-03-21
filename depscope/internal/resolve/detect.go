@@ -83,17 +83,7 @@ func extractHost(rawURL string) string {
 	return u.Host
 }
 
-// Stub resolvers — replaced in Tasks 3-5 with real implementations.
-
-type githubResolver struct{ token string }
-
-func NewGitHubResolver(token string, opts ...Option) TypedResolver {
-	return &githubResolver{token: token}
-}
-func (r *githubResolver) Type() string { return "github" }
-func (r *githubResolver) Resolve(ctx context.Context, url string) ([]ManifestFile, func(), error) {
-	return nil, func() {}, nil
-}
+// Stub resolvers — replaced in Tasks 4-5 with real implementations.
 
 type gitlabResolver struct{ token string }
 
