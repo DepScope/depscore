@@ -14,15 +14,54 @@ func NewPythonParser() *PythonParser { return &PythonParser{} }
 func (p *PythonParser) Ecosystem() Ecosystem { return EcosystemPython }
 
 func (p *PythonParser) Parse(dir string) ([]Package, error) {
-	for _, try := range []struct{ file string }{
-		{"uv.lock"}, {"poetry.lock"}, {"requirements.txt"},
-	} {
-		path := dir + "/" + try.file
+	// Try lockfiles first (they have resolved versions)
+	var lockPkgs []Package
+	var lockErr error
+	for _, lockFile := range []string{"uv.lock", "poetry.lock"} {
+		path := dir + "/" + lockFile
 		if _, err := os.Stat(path); err == nil {
-			return p.ParseFile(path)
+			lockPkgs, lockErr = p.ParseFile(path)
+			break
 		}
 	}
-	return nil, os.ErrNotExist
+
+	// Read requirements.txt for constraints (even if we have a lockfile)
+	var constraints map[string]string // name -> constraint string
+	reqPath := dir + "/requirements.txt"
+	if _, err := os.Stat(reqPath); err == nil {
+		reqPkgs, err := p.parseRequirements(reqPath)
+		if err == nil {
+			constraints = make(map[string]string)
+			for _, rp := range reqPkgs {
+				constraints[rp.Name] = rp.Constraint
+			}
+		}
+		// If no lockfile, use requirements.txt directly
+		if lockPkgs == nil {
+			return reqPkgs, err
+		}
+	}
+
+	if lockPkgs == nil {
+		return nil, lockErr
+	}
+
+	// Merge: lockfile versions + manifest constraints
+	if constraints != nil {
+		for i, pkg := range lockPkgs {
+			if constraint, ok := constraints[strings.ToLower(pkg.Name)]; ok {
+				lockPkgs[i].Constraint = constraint
+				lockPkgs[i].ConstraintType = ParseConstraintType(constraint)
+			}
+			// Also try case-insensitive
+			if constraint, ok := constraints[pkg.Name]; ok {
+				lockPkgs[i].Constraint = constraint
+				lockPkgs[i].ConstraintType = ParseConstraintType(constraint)
+			}
+		}
+	}
+
+	return lockPkgs, nil
 }
 
 func (p *PythonParser) ParseFile(path string) ([]Package, error) {
