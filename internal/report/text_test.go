@@ -49,6 +49,7 @@ func TestTextReportTreeConnectors(t *testing.T) {
 		ConstraintType:      "exact",
 		Depth:               1,
 		OwnScore:            75,
+		VulnScore:           100,
 		TransitiveRiskScore: 75,
 		OwnRisk:             core.RiskMedium,
 		TransitiveRisk:      core.RiskMedium,
@@ -71,6 +72,7 @@ func TestTextReportShowsFailWhenBelowThreshold(t *testing.T) {
 func TestTextReportShowsPassWhenAboveThreshold(t *testing.T) {
 	result := SampleScanResultWithDeps()
 	result.Packages[1].OwnScore = 80
+	result.Packages[1].VulnScore = 100
 	result.Packages[1].TransitiveRiskScore = 80
 	result.Packages[1].OwnRisk = core.RiskLow
 	result.Packages[1].TransitiveRisk = core.RiskLow

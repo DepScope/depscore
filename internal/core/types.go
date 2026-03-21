@@ -50,9 +50,11 @@ type PackageResult struct {
 	Constraint          string // the manifest constraint string (e.g., ">=1.26", "^2.0", "==2.31.0")
 	ConstraintType      string
 	Depth               int
-	OwnScore            int
+	OwnScore            int // reputation score (7 weighted factors, no CVE)
+	VulnScore           int // vulnerability score (100=clean, 10=critical CVE)
 	TransitiveRiskScore int
 	OwnRisk             RiskLevel
+	VulnRisk            RiskLevel
 	TransitiveRisk      RiskLevel
 	Issues              []Issue
 	VulnCount           int
@@ -61,10 +63,14 @@ type PackageResult struct {
 }
 
 func (r PackageResult) FinalScore() int {
-	if r.TransitiveRiskScore < r.OwnScore {
-		return r.TransitiveRiskScore
+	score := r.OwnScore
+	if r.VulnScore < score {
+		score = r.VulnScore
 	}
-	return r.OwnScore
+	if r.TransitiveRiskScore < score {
+		score = r.TransitiveRiskScore
+	}
+	return score
 }
 
 func (r PackageResult) FinalRisk() RiskLevel {
