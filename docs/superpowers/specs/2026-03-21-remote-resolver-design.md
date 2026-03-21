@@ -47,12 +47,14 @@ All resolvers return `[]ManifestFile` with file content already loaded. The call
 | `gitlab.com/*` | `GitLabResolver` — Repository Tree API |
 | Everything else (`git@`, other HTTPS hosts) | `GitCloneResolver` — shallow clone |
 
-Detection: if the scan argument starts with `http://`, `https://`, or `git@`, it's a URL and dispatched to a resolver. Otherwise, it's treated as a local path (existing behavior).
+Detection: if the scan argument starts with `http://`, `https://`, `ssh://`, or `git@`, it's a URL and dispatched to a resolver. Otherwise, it's treated as a local path (existing behavior).
 
 ### Ref Resolution
 
-- If the URL includes a ref (e.g., `/tree/v2.0`, `/tree/main`), use that ref.
-- If no ref is specified, use the repo's default branch.
+- GitHub: extract everything after `/tree/` in the URL path as the ref. Validate by passing it to the Trees API — if it 404s, fall back to the default branch and warn.
+- GitLab: extract ref from `/-/tree/{ref}` path segment.
+- If no ref is present in the URL, use the repo's default branch (fetched via the repo metadata API).
+- Bare URLs like `github.com/owner/repo` always use the default branch.
 
 ---
 
@@ -79,7 +81,7 @@ Only fetch files matching these names (at any depth in the tree):
 | Ecosystem | Filenames |
 |---|---|
 | Go | `go.mod`, `go.sum` |
-| Python | `requirements.txt`, `poetry.lock`, `uv.lock` |
+| Python | `requirements.txt`, `pyproject.toml`, `poetry.lock`, `uv.lock` |
 | Rust | `Cargo.toml`, `Cargo.lock` |
 | JavaScript | `package.json`, `package-lock.json`, `pnpm-lock.yaml`, `bun.lock` |
 
@@ -94,7 +96,7 @@ Both filters are shared constants used by all three resolvers.
 ### Flow
 
 1. Parse `owner` and `repo` from URL. Extract ref if present.
-2. Call `GET /repos/{owner}/{repo}/git/trees/{ref}?recursive=1` — returns the full file tree in a single API call.
+2. Call `GET /repos/{owner}/{repo}/git/trees/{ref}?recursive=1` — returns the full file tree in a single API call. If the response has `"truncated": true` (repos with >100k entries), log a warning that some manifests may be missed and proceed with the partial tree.
 3. Filter the tree entries: skip ignored directories, match known manifest filenames.
 4. For each matching entry, call `GET /repos/{owner}/{repo}/contents/{path}?ref={ref}` — returns base64-encoded file content.
 5. Decode content, return `[]ManifestFile`. Cleanup func is no-op.
@@ -114,7 +116,7 @@ If no token is set, unauthenticated rate limit (60 req/hr) applies. A warning is
 ### Flow
 
 1. Parse project path from URL (supports `gitlab.com/group/subgroup/project` format).
-2. Call `GET /api/v4/projects/{url-encoded-path}/repository/tree?recursive=true&ref={ref}&per_page=100` (paginate if needed).
+2. Call `GET /api/v4/projects/{url-encoded-path}/repository/tree?recursive=true&ref={ref}&per_page=100`. Paginate using the `page` query parameter (GitLab's default offset pagination). Cap at 10 pages (1,000 entries) to prevent runaway requests on massive repos; log a warning if the cap is hit.
 3. Filter tree entries with the same ignore-dirs + manifest-filename filters.
 4. For each match, call `GET /api/v4/projects/{id}/repository/files/{url-encoded-path}/raw?ref={ref}`.
 5. Return `[]ManifestFile`. Cleanup func is no-op.
@@ -132,7 +134,7 @@ Uses `GITLAB_TOKEN` env var. Required for private repos. Public repos work witho
 ### Flow
 
 1. Create a temp directory via `os.MkdirTemp("", "depscope-clone-*")`.
-2. Run `git clone --depth=1 {url} {tmpdir}`.
+2. Run `git clone --depth=1 {url} {tmpdir}` via `exec.CommandContext(ctx, ...)` so the clone respects context cancellation and timeouts. The scan command sets a 60-second timeout on the clone context.
 3. Walk the temp directory, applying the same ignore-dirs + manifest-filename filters.
 4. Read matching files into `[]ManifestFile`.
 5. Return cleanup func that calls `os.RemoveAll(tmpdir)`.
@@ -145,7 +147,7 @@ Uses `GITLAB_TOKEN` env var. Required for private repos. Public repos work witho
 
 ### Signal Handling
 
-Cleanup runs via `defer` in the scan command. If the process is interrupted (SIGINT), Go's defer mechanism ensures the temp dir is removed.
+The scan command registers a `signal.Notify` handler for SIGINT/SIGTERM that calls the cleanup func before exiting. Go's `defer` does **not** run on signal-based termination, so explicit signal handling is required. If cleanup fails or is skipped (e.g., SIGKILL), orphaned temp dirs use the `depscope-clone-*` prefix so they can be identified and cleaned up manually.
 
 ---
 
@@ -161,11 +163,33 @@ depscope scan https://bitbucket.org/org/repo        # clone fallback
 depscope scan git@custom-host.com:org/repo.git      # clone fallback
 ```
 
-### Manifest Parser Refactor
+### Scan Pipeline Integration
 
-Currently, manifest parsers read from file paths. To support resolved content, each parser gets a `ParseBytes(name string, content []byte)` method alongside the existing `ParseFile(path string)` method. `ParseFile` becomes a thin wrapper: read the file, call `ParseBytes`.
+The scan command has two paths depending on input type:
 
-This is a minimal change — the parsing logic itself is unchanged.
+**Local path (existing):** `DetectEcosystem(dir)` → `ParserFor(ecosystem)` → `parser.Parse(dir)` → scoring pipeline.
+
+**Remote URL (new):**
+1. `DetectResolver(url)` → resolver
+2. `resolver.Resolve(ctx, url)` → `[]ManifestFile`
+3. Group `ManifestFile`s by directory (e.g., `services/api/go.mod` and `services/api/go.sum` belong together)
+4. For each group, detect ecosystem from the filenames present (same logic as `DetectEcosystem`, but operating on filename strings instead of stat calls)
+5. Call `parser.ParseFiles(files map[string][]byte)` — a new method on the `Parser` interface that accepts a map of `filename → content`
+6. The rest of the pipeline (registry fetch, scoring, propagation, reporting) is unchanged
+
+**Parser interface change:**
+
+```go
+type Parser interface {
+    Parse(dir string) ([]Package, error)             // local: reads from disk
+    ParseFiles(files map[string][]byte) ([]Package, error) // remote: reads from memory
+    Ecosystem() Ecosystem
+}
+```
+
+`Parse(dir)` becomes a thin wrapper: read the relevant files from disk into a `map[string][]byte`, then call `ParseFiles`. This keeps the parsing logic in one place.
+
+**Multi-ecosystem repos:** A remote repo may contain manifests for multiple ecosystems (e.g., `go.mod` at root + `frontend/package.json`). Each group is parsed independently and the results are merged into a single scan, same as local scanning of a monorepo.
 
 ---
 
