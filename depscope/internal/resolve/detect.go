@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"context"
 	"net/url"
 	"strings"
 )
@@ -81,16 +80,6 @@ func extractHost(rawURL string) string {
 		return ""
 	}
 	return u.Host
-}
-
-// gitCloneResolver is a stub — replaced in Task 5 with a real implementation.
-
-type gitCloneResolver struct{}
-
-func NewGitCloneResolver() TypedResolver { return &gitCloneResolver{} }
-func (r *gitCloneResolver) Type() string { return "gitclone" }
-func (r *gitCloneResolver) Resolve(ctx context.Context, url string) ([]ManifestFile, func(), error) {
-	return nil, func() {}, nil
 }
 
 // Option is a functional option for resolvers (e.g. override base URL in tests).
