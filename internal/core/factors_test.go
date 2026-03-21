@@ -8,6 +8,7 @@ import (
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
 	"github.com/depscope/depscope/internal/vcs"
+	"github.com/depscope/depscope/internal/vuln"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -61,4 +62,17 @@ func TestFactorRepoHealthArchivedRepo(t *testing.T) {
 	score, issues := core.FactorRepoHealth(archived)
 	assert.Equal(t, 0, score)
 	assert.NotEmpty(t, issues)
+}
+
+func TestFactorVulnerabilities(t *testing.T) {
+	// No vulns = perfect score
+	score, issues := core.FactorVulnerabilities(nil)
+	assert.Equal(t, 100, score)
+	assert.Empty(t, issues)
+
+	// Critical CVE
+	critical := []vuln.Finding{{ID: "CVE-2023-001", Summary: "RCE", Severity: vuln.SeverityCritical}}
+	score, issues = core.FactorVulnerabilities(critical)
+	assert.Equal(t, 10, score)
+	assert.Len(t, issues, 1)
 }

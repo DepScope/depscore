@@ -1,11 +1,13 @@
 package core
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
 	"github.com/depscope/depscope/internal/vcs"
+	"github.com/depscope/depscope/internal/vuln"
 )
 
 // FactorReleaseRecency: <6mo=100, <1yr=80, <2yr=60, <3yr=40, >=3yr=20
@@ -129,5 +131,60 @@ func FactorRepoHealth(repo *vcs.RepoInfo) (int, []Issue) {
 		return 40, []Issue{{Severity: SeverityMedium, Message: "no commits in over a year"}}
 	default:
 		return 10, []Issue{{Severity: SeverityHigh, Message: "no commits in over 2 years"}}
+	}
+}
+
+// FactorVulnerabilities penalizes packages with known CVEs.
+// No CVEs = 100, only LOW = 80, any MEDIUM = 60, any HIGH = 30, any CRITICAL = 10.
+func FactorVulnerabilities(vulns []vuln.Finding) (int, []Issue) {
+	if len(vulns) == 0 {
+		return 100, nil
+	}
+
+	maxSev := vuln.SeverityLow
+	var issues []Issue
+	for _, v := range vulns {
+		issues = append(issues, Issue{
+			Severity: mapVulnSeverity(v.Severity),
+			Message:  fmt.Sprintf("CVE %s: %s (%s)", v.ID, v.Summary, v.Severity),
+		})
+		switch v.Severity {
+		case vuln.SeverityCritical:
+			if maxSev != vuln.SeverityCritical {
+				maxSev = vuln.SeverityCritical
+			}
+		case vuln.SeverityHigh:
+			if maxSev != vuln.SeverityCritical {
+				maxSev = vuln.SeverityHigh
+			}
+		case vuln.SeverityMedium:
+			if maxSev != vuln.SeverityCritical && maxSev != vuln.SeverityHigh {
+				maxSev = vuln.SeverityMedium
+			}
+		}
+	}
+
+	switch maxSev {
+	case vuln.SeverityCritical:
+		return 10, issues
+	case vuln.SeverityHigh:
+		return 30, issues
+	case vuln.SeverityMedium:
+		return 60, issues
+	default:
+		return 80, issues
+	}
+}
+
+func mapVulnSeverity(s vuln.Severity) IssueSeverity {
+	switch s {
+	case vuln.SeverityCritical:
+		return SeverityCritical
+	case vuln.SeverityHigh:
+		return SeverityHigh
+	case vuln.SeverityMedium:
+		return SeverityMedium
+	default:
+		return SeverityLow
 	}
 }

@@ -5,12 +5,14 @@ import (
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
 	"github.com/depscope/depscope/internal/vcs"
+	"github.com/depscope/depscope/internal/vuln"
 )
 
 // FetchResult bundles registry metadata and VCS info for a single package.
 type FetchResult struct {
 	Info     *registry.PackageInfo
 	RepoInfo *vcs.RepoInfo
+	Vulns    []vuln.Finding
 	Err      error
 }
 
@@ -64,10 +66,24 @@ func Score(pkg manifest.Package, fr *FetchResult, weights config.Weights) Packag
 	}
 	ownScore := clamp(total/100, 0, 100)
 
+	// Apply CVE penalty on top of reputation score
+	var vulns []vuln.Finding
+	if fr != nil {
+		vulns = fr.Vulns
+	}
+	vulnScore, vulnIssues := FactorVulnerabilities(vulns)
+
+	// Blend: final = (reputation * 0.7) + (vuln_score * 0.3) if vulns exist
+	// If no vulns, just use reputation score
+	if len(vulns) > 0 {
+		ownScore = (ownScore*70 + vulnScore*30) / 100
+	}
+
 	var allIssues []Issue
 	for _, fs := range factors {
 		allIssues = append(allIssues, fs.issues...)
 	}
+	allIssues = append(allIssues, vulnIssues...)
 
 	return PackageResult{
 		Name:                pkg.Name,
@@ -80,6 +96,7 @@ func Score(pkg manifest.Package, fr *FetchResult, weights config.Weights) Packag
 		TransitiveRiskScore: 100,
 		TransitiveRisk:      RiskLow,
 		Issues:              allIssues,
+		VulnCount:           len(vulns),
 	}
 }
 
