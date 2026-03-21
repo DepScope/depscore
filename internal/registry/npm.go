@@ -19,7 +19,9 @@ func NewNPMClient(opts ...Option) *NPMClient {
 func (c *NPMClient) Ecosystem() string { return "npm" }
 
 func (c *NPMClient) Fetch(name, version string) (*PackageInfo, error) {
-	url := fmt.Sprintf("%s/%s/%s", c.opts.baseURL, name, version)
+	// Fetch the full package document (not version-specific) so we get the
+	// top-level "time", "maintainers", and "repository" fields.
+	url := fmt.Sprintf("%s/%s", c.opts.baseURL, name)
 	resp, err := c.opts.httpClient.Get(url)
 	if err != nil {
 		return nil, err
@@ -27,10 +29,12 @@ func (c *NPMClient) Fetch(name, version string) (*PackageInfo, error) {
 	defer resp.Body.Close()
 
 	var data struct {
-		Name        string            `json:"name"`
-		Maintainers []struct{}        `json:"maintainers"`
-		Time        map[string]string `json:"time"`
-		Repository  struct {
+		Name       string `json:"name"`
+		Maintainers []struct {
+			Name string `json:"name"`
+		} `json:"maintainers"`
+		Time       map[string]string `json:"time"`
+		Repository struct {
 			URL string `json:"url"`
 		} `json:"repository"`
 	}
@@ -50,7 +54,11 @@ func (c *NPMClient) Fetch(name, version string) (*PackageInfo, error) {
 	}
 
 	if ts, ok := data.Time[version]; ok {
-		t, err := time.Parse(time.RFC3339, ts)
+		t, err := time.Parse(time.RFC3339Nano, ts)
+		if err != nil {
+			// Fall back to basic RFC3339 for timestamps without fractional seconds.
+			t, err = time.Parse(time.RFC3339, ts)
+		}
 		if err == nil {
 			info.LastReleaseAt = t
 		}

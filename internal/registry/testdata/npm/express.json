@@ -1,18 +1,17 @@
 {
   "name": "express",
-  "version": "4.18.2",
   "description": "Fast, unopinionated, minimalist web framework",
   "maintainers": [
     {"name": "dougwilson", "email": "doug@somethingdoug.com"},
     {"name": "hacksparrow", "email": "captain@hacksparrow.com"}
   ],
   "time": {
-    "4.18.2": "2022-10-08T17:12:01Z",
-    "4.18.1": "2022-04-29T18:06:03Z",
-    "4.18.0": "2022-04-25T00:29:06Z"
+    "4.18.2": "2022-10-08T17:12:01.032Z",
+    "4.18.1": "2022-04-29T18:06:03.456Z",
+    "4.18.0": "2022-04-25T00:29:06.789Z"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/expressjs/express"
+    "url": "git+https://github.com/expressjs/express.git"
   }
 }
