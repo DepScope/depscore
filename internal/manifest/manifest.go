@@ -139,6 +139,47 @@ func BuildDepsMap(pkgs []Package) map[string][]string {
 	return deps
 }
 
+// ComputeDepths assigns correct depth values based on the dependency graph.
+// Direct deps (no parents in the graph) get depth=1, their deps get depth=2, etc.
+func ComputeDepths(pkgs []Package, deps map[string][]string) []Package {
+	// Find root packages (depth=1): those that appear as direct deps (not as children of other packages)
+	isChild := make(map[string]bool)
+	for _, children := range deps {
+		for _, c := range children {
+			isChild[c] = true
+		}
+	}
+
+	// BFS from roots to assign depths
+	depth := make(map[string]int)
+	queue := []string{}
+	for i := range pkgs {
+		if !isChild[pkgs[i].Name] {
+			depth[pkgs[i].Name] = 1
+			queue = append(queue, pkgs[i].Name)
+		}
+	}
+
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		for _, child := range deps[name] {
+			if _, ok := depth[child]; !ok {
+				depth[child] = depth[name] + 1
+				queue = append(queue, child)
+			}
+		}
+	}
+
+	// Apply computed depths
+	for i := range pkgs {
+		if d, ok := depth[pkgs[i].Name]; ok {
+			pkgs[i].Depth = d
+		}
+	}
+	return pkgs
+}
+
 // ParseConstraintType classifies a raw version constraint string.
 func ParseConstraintType(constraint string) ConstraintType {
 	c := strings.TrimSpace(constraint)
