@@ -3,6 +3,7 @@ package registry_test
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/depscope/depscope/internal/manifest"
@@ -32,15 +33,15 @@ func TestFetchAllDeduplicates(t *testing.T) {
 		{Name: "requests", ResolvedVersion: "2.31.0", Ecosystem: manifest.EcosystemPython},
 		{Name: "urllib3", ResolvedVersion: "2.0.7", Ecosystem: manifest.EcosystemPython},
 	}
-	fetchCount := 0
+	var fetchCount atomic.Int32
 	stub := &stubFetcher{fn: func(name, version string) (*registry.PackageInfo, error) {
-		fetchCount++
+		fetchCount.Add(1)
 		return &registry.PackageInfo{Name: name}, nil
 	}}
 	results, err := registry.FetchAll(context.Background(), pkgs, stub, nil, nil,
 		registry.FetchOptions{Concurrency: 5})
 	require.NoError(t, err)
-	assert.Equal(t, 2, fetchCount, "duplicate package should be fetched only once")
+	assert.Equal(t, int32(2), fetchCount.Load(), "duplicate package should be fetched only once")
 	assert.Len(t, results, 2)
 }
 
