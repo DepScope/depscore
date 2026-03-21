@@ -30,10 +30,11 @@ func RiskLevelFromScore(score int) RiskLevel {
 type IssueSeverity string
 
 const (
-	SeverityHigh   IssueSeverity = "HIGH"
-	SeverityMedium IssueSeverity = "MEDIUM"
-	SeverityLow    IssueSeverity = "LOW"
-	SeverityInfo   IssueSeverity = "INFO"
+	SeverityCritical IssueSeverity = "CRITICAL"
+	SeverityHigh     IssueSeverity = "HIGH"
+	SeverityMedium   IssueSeverity = "MEDIUM"
+	SeverityLow      IssueSeverity = "LOW"
+	SeverityInfo     IssueSeverity = "INFO"
 )
 
 type Issue struct {
