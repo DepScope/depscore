@@ -24,17 +24,19 @@ type jsonPackage struct {
 	OwnRisk             string      `json:"own_risk"`
 	TransitiveRisk      string      `json:"transitive_risk"`
 	FinalScore          int         `json:"final_score"`
+	VulnCount           int         `json:"vuln_count"`
 	Issues              []jsonIssue `json:"issues"`
 }
 
 type jsonReport struct {
-	Profile        string        `json:"profile"`
-	PassThreshold  int           `json:"pass_threshold"`
-	DirectDeps     int           `json:"direct_deps"`
-	TransitiveDeps int           `json:"transitive_deps"`
-	Packages       []jsonPackage `json:"packages"`
-	AllIssues      []jsonIssue   `json:"all_issues"`
-	Passed         bool          `json:"passed"`
+	Profile        string              `json:"profile"`
+	PassThreshold  int                 `json:"pass_threshold"`
+	DirectDeps     int                 `json:"direct_deps"`
+	TransitiveDeps int                 `json:"transitive_deps"`
+	Packages       []jsonPackage       `json:"packages"`
+	AllIssues      []jsonIssue         `json:"all_issues"`
+	Deps           map[string][]string `json:"deps,omitempty"`
+	Passed         bool                `json:"passed"`
 }
 
 func toJSONIssue(i core.Issue) jsonIssue {
@@ -63,6 +65,7 @@ func WriteJSON(w io.Writer, result core.ScanResult) error {
 			OwnRisk:             string(p.OwnRisk),
 			TransitiveRisk:      string(p.TransitiveRisk),
 			FinalScore:          p.FinalScore(),
+			VulnCount:           p.VulnCount,
 			Issues:              issues,
 		})
 	}
@@ -79,6 +82,7 @@ func WriteJSON(w io.Writer, result core.ScanResult) error {
 		TransitiveDeps: result.TransitiveDeps,
 		Packages:       packages,
 		AllIssues:      allIssues,
+		Deps:           result.Deps,
 		Passed:         result.Passed(),
 	}
 

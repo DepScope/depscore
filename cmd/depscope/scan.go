@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/depscope/depscope/internal/cache"
 	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/manifest"
@@ -85,6 +86,9 @@ func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, regO
 	reg := regOverride
 	if reg == nil {
 		reg = buildRegistryFetcher(eco)
+		// Wrap with disk cache
+		diskCache := cache.NewDiskCache(cache.DefaultDir())
+		reg = registry.NewCachedFetcher(reg, diskCache, cfg.Cache.MetadataHours)
 	}
 
 	token := os.Getenv("GITHUB_TOKEN")
@@ -104,6 +108,10 @@ func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, regO
 		return err
 	}
 
+	// Build dependency graph and compute correct depths before scoring
+	deps := manifest.BuildDepsMap(pkgs)
+	pkgs = manifest.ComputeDepths(pkgs, deps)
+
 	// Count direct vs transitive
 	directCount, transitiveCount := 0, 0
 	for _, pkg := range pkgs {
@@ -119,12 +127,11 @@ func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, regO
 		regFR := fetchResults[pkg.Key()]
 		var coreFR *core.FetchResult
 		if regFR != nil {
-			coreFR = &core.FetchResult{Info: regFR.Info, RepoInfo: regFR.RepoInfo, Err: regFR.Err}
+			coreFR = &core.FetchResult{Info: regFR.Info, RepoInfo: regFR.RepoInfo, Vulns: regFR.Vulns, Err: regFR.Err}
 		}
 		results = append(results, core.Score(pkg, coreFR, cfg.Weights))
 	}
 
-	deps := manifest.BuildDepsMap(pkgs)
 	results = core.Propagate(results, deps)
 
 	scanResult := core.ScanResult{
@@ -133,6 +140,7 @@ func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, regO
 		DirectDeps:     directCount,
 		TransitiveDeps: transitiveCount,
 		Packages:       results,
+		Deps:           deps,
 	}
 	for _, r := range results {
 		scanResult.AllIssues = append(scanResult.AllIssues, r.Issues...)

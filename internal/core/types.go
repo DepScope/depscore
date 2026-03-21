@@ -54,6 +54,7 @@ type PackageResult struct {
 	OwnRisk             RiskLevel
 	TransitiveRisk      RiskLevel
 	Issues              []Issue
+	VulnCount           int
 	DependsOnCount      int
 	DependedOnCount     int
 }
@@ -77,6 +78,7 @@ type ScanResult struct {
 	MaxDepthReached bool
 	Packages        []PackageResult
 	AllIssues       []Issue
+	Deps            map[string][]string // dependency graph: parent → children
 }
 
 func (s ScanResult) Passed() bool {
