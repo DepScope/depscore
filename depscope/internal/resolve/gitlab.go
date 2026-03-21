@@ -164,7 +164,7 @@ func (r *GitLabResolver) fetchFileRaw(ctx context.Context, encodedProject, ref, 
 		return nil, fmt.Errorf("GitLab API file %s: %d", filePath, resp.StatusCode)
 	}
 
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB cap per file
 }
 
 func (r *GitLabResolver) setAuth(req *http.Request) {

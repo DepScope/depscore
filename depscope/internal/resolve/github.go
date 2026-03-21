@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -43,7 +44,21 @@ func (r *GitHubResolver) Resolve(ctx context.Context, rawURL string) ([]Manifest
 
 	treePaths, err := r.fetchTree(ctx, owner, repo, ref)
 	if err != nil {
-		return nil, func() {}, fmt.Errorf("fetch tree: %w", err)
+		// If ref was explicitly provided and 404s, fall back to default branch.
+		if strings.Contains(err.Error(), "404") && ref != "" {
+			log.Printf("warning: ref %q not found for %s/%s, falling back to default branch", ref, owner, repo)
+			defaultRef, defaultErr := r.fetchDefaultBranch(ctx, owner, repo)
+			if defaultErr != nil {
+				return nil, func() {}, fmt.Errorf("fetch tree: %w (fallback also failed: %v)", err, defaultErr)
+			}
+			ref = defaultRef
+			treePaths, err = r.fetchTree(ctx, owner, repo, ref)
+			if err != nil {
+				return nil, func() {}, fmt.Errorf("fetch tree: %w", err)
+			}
+		} else {
+			return nil, func() {}, fmt.Errorf("fetch tree: %w", err)
+		}
 	}
 
 	var manifestPaths []string
@@ -78,7 +93,7 @@ func (r *GitHubResolver) fetchDefaultBranch(ctx context.Context, owner, repo str
 }
 
 func (r *GitHubResolver) fetchTree(ctx context.Context, owner, repo, ref string) ([]string, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/git/trees/%s?recursive=1", r.baseURL, owner, repo, ref)
+	url := fmt.Sprintf("%s/repos/%s/%s/git/trees/%s?recursive=1", r.baseURL, owner, repo, url.PathEscape(ref))
 	var result struct {
 		Tree []struct {
 			Path string `json:"path"`
@@ -102,7 +117,7 @@ func (r *GitHubResolver) fetchTree(ctx context.Context, owner, repo, ref string)
 }
 
 func (r *GitHubResolver) fetchFileContent(ctx context.Context, owner, repo, ref, path string) ([]byte, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/contents/%s?ref=%s", r.baseURL, owner, repo, path, ref)
+	url := fmt.Sprintf("%s/repos/%s/%s/contents/%s?ref=%s", r.baseURL, owner, repo, path, url.QueryEscape(ref))
 	var result struct {
 		Content  string `json:"content"`
 		Encoding string `json:"encoding"`
@@ -135,8 +150,8 @@ func (r *GitHubResolver) getJSON(ctx context.Context, url string, target interfa
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB cap for error bodies
 		return fmt.Errorf("GitHub API %s: %d %s", url, resp.StatusCode, string(body))
 	}
-	return json.NewDecoder(resp.Body).Decode(target)
+	return json.NewDecoder(io.LimitReader(resp.Body, 100<<20)).Decode(target) // 100 MB cap for tree responses
 }
