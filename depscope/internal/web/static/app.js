@@ -72,10 +72,11 @@
     var overlay = panel.querySelector('.panel-overlay');
     var closeBtn = panel.querySelector('.panel-close');
 
-    // Open panel on row click
+    // Open panel on row click (but NOT when clicking the expand ▶ button)
     var rows = document.querySelectorAll('tr.pkg-row');
     rows.forEach(function (row) {
-      row.addEventListener('click', function () {
+      row.addEventListener('click', function (e) {
+        if (e.target.closest('.pkg-expand')) return; // handled by tree expand
         openPanel(row.dataset);
       });
     });
@@ -350,7 +351,7 @@
       e.stopPropagation(); // don't open the side panel
 
       var row = expand.closest('tr.pkg-row');
-      if (!row) return;
+      if (!row || row.classList.contains('dep-empty')) return;
 
       // Toggle: if already expanded, collapse
       if (row.classList.contains('expanded')) {
@@ -373,10 +374,13 @@
         .then(function (r) { return r.json(); })
         .then(function (pkg) {
           if (!pkg.dependsOn || pkg.dependsOn.length === 0) {
-            // No deps — show a "no dependencies" row
-            var noDep = createDepRow('(no dependencies)', '', '', 0, depth + 1, row.dataset.eco);
-            noDep.classList.add('dep-row', 'dep-empty');
+            // No deps — show a leaf indicator
+            var noDep = document.createElement('tr');
+            noDep.className = 'dep-row dep-empty';
             noDep.dataset.parentName = name;
+            var indent = '';
+            for (var j = 0; j <= depth; j++) indent += '\u00A0\u00A0\u00A0';
+            noDep.innerHTML = '<td colspan="6" class="dep-leaf">' + indent + '\u2514 no dependencies</td>';
             row.parentNode.insertBefore(noDep, row.nextSibling);
             return;
           }
@@ -431,12 +435,13 @@
     if (expand) expand.textContent = '\u25B6'; // ▶
     row.classList.remove('expanded');
 
-    // Remove all sub-rows that belong to this row
-    var name = row.dataset.name;
-    var next = row.nextSibling;
-    while (next && next.classList && next.classList.contains('dep-row')) {
+    // Remove all sub-rows inserted after this row (they have higher depth
+    // or are dep-empty rows). Stop when we hit a non-dep-row.
+    var rowDepth = parseInt(row.dataset.depth || '0', 10);
+    var next = row.nextElementSibling;
+    while (next && next.classList.contains('dep-row')) {
       var toRemove = next;
-      next = next.nextSibling;
+      next = next.nextElementSibling;
       toRemove.remove();
     }
   }

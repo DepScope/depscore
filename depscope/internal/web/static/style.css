@@ -741,9 +741,10 @@ details[open] .issue-summary-title::before { transform: rotate(90deg); }
 .dep-row:hover {
   background: rgba(22, 27, 34, 0.9) !important;
 }
-.dep-empty td {
+.dep-empty td, .dep-leaf {
   color: var(--text-secondary);
   font-style: italic;
+  font-size: 12px;
 }
 
 /* =========================================================
