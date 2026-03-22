@@ -80,6 +80,22 @@ func ParserFor(eco Ecosystem) Parser {
 	}
 }
 
+// String returns the canonical ecosystem name as used by registry APIs.
+func (e Ecosystem) String() string {
+	switch e {
+	case EcosystemPython:
+		return "PyPI"
+	case EcosystemGo:
+		return "Go"
+	case EcosystemRust:
+		return "crates.io"
+	case EcosystemNPM:
+		return "npm"
+	default:
+		return string(e)
+	}
+}
+
 func BuildDepsMap(pkgs []Package) map[string][]string {
 	deps := make(map[string][]string)
 
