@@ -158,18 +158,19 @@ func (s *Server) runScan(ctx context.Context, id, rawURL, profile string) {
 
 // packageDetailResponse is the JSON body for GET /api/package/{eco}/{rest...}.
 type packageDetailResponse struct {
-	Name           string       `json:"name"`
-	Version        string       `json:"version"`
-	Ecosystem      string       `json:"ecosystem"`
-	Score          int          `json:"score"`
-	Risk           core.RiskLevel `json:"risk"`
-	TransitiveRisk core.RiskLevel `json:"transitiveRisk"`
-	TransitiveScore int          `json:"transitiveScore"`
-	ConstraintType string       `json:"constraintType"`
-	Depth          int          `json:"depth"`
-	Issues         []core.Issue `json:"issues"`
-	DependsOn      int          `json:"dependsOn"`
-	DependedOn     int          `json:"dependedOn"`
+	Name            string         `json:"name"`
+	Version         string         `json:"version"`
+	Ecosystem       string         `json:"ecosystem"`
+	Score           int            `json:"score"`
+	Risk            core.RiskLevel `json:"risk"`
+	TransitiveRisk  core.RiskLevel `json:"transitiveRisk"`
+	TransitiveScore int            `json:"transitiveScore"`
+	ConstraintType  string         `json:"constraintType"`
+	Depth           int            `json:"depth"`
+	Issues          []core.Issue   `json:"issues"`
+	DependsOn       []string       `json:"dependsOn"`
+	DependsOnCount  int            `json:"dependsOnCount"`
+	DependedOnCount int            `json:"dependedOnCount"`
 }
 
 // handlePackageDetail handles GET /api/package/{eco}/{rest...}.
@@ -226,6 +227,11 @@ outer:
 		issues = []core.Issue{}
 	}
 
+	deps := found.DependsOn
+	if deps == nil {
+		deps = []string{}
+	}
+
 	resp := packageDetailResponse{
 		Name:            found.Name,
 		Version:         found.Version,
@@ -237,8 +243,9 @@ outer:
 		ConstraintType:  found.ConstraintType,
 		Depth:           found.Depth,
 		Issues:          issues,
-		DependsOn:       found.DependsOnCount,
-		DependedOn:      found.DependedOnCount,
+		DependsOn:       deps,
+		DependsOnCount:  found.DependsOnCount,
+		DependedOnCount: found.DependedOnCount,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -723,6 +723,29 @@ details[open] .issue-summary-title::before { transform: rotate(90deg); }
   font-size: 12px;
 }
 
+.pkg-expand {
+  cursor: pointer;
+  display: inline-block;
+  width: 16px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: color 0.15s;
+  user-select: none;
+}
+.pkg-expand:hover { color: var(--accent); }
+.expanded > td .pkg-expand { color: var(--accent); }
+
+.dep-row {
+  background: rgba(22, 27, 34, 0.7) !important;
+}
+.dep-row:hover {
+  background: rgba(22, 27, 34, 0.9) !important;
+}
+.dep-empty td {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
 /* =========================================================
    Responsive
    ========================================================= */

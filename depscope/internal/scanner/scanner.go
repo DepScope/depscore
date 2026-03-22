@@ -105,6 +105,23 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 	depsMap := manifest.BuildDepsMap(pkgs)
 	scored = core.Propagate(scored, depsMap)
 
+	// Populate DependsOn and counts on each PackageResult
+	for i := range scored {
+		deps := depsMap[scored[i].Name]
+		scored[i].DependsOn = deps
+		scored[i].DependsOnCount = len(deps)
+	}
+	// Build reverse map for DependedOnCount
+	dependedOn := make(map[string]int)
+	for _, deps := range depsMap {
+		for _, d := range deps {
+			dependedOn[d]++
+		}
+	}
+	for i := range scored {
+		scored[i].DependedOnCount = dependedOn[scored[i].Name]
+	}
+
 	directCount, transitiveCount := 0, 0
 	for _, pkg := range pkgs {
 		if pkg.Depth <= 1 {
@@ -126,6 +143,7 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 		TransitiveDeps: transitiveCount,
 		Packages:       scored,
 		AllIssues:      allIssues,
+		DepsMap:        depsMap,
 	}
 	return result, nil
 }

@@ -339,4 +339,120 @@
     panel.classList.add('hidden');
     document.body.style.overflow = '';
   }
+
+  /* =========================================================
+     Recursive Dependency Tree (expand ▶ in table)
+     ========================================================= */
+  if (table) {
+    table.addEventListener('click', function (e) {
+      var expand = e.target.closest('.pkg-expand');
+      if (!expand) return;
+      e.stopPropagation(); // don't open the side panel
+
+      var row = expand.closest('tr.pkg-row');
+      if (!row) return;
+
+      // Toggle: if already expanded, collapse
+      if (row.classList.contains('expanded')) {
+        collapseRow(row);
+        return;
+      }
+
+      // Expand: fetch deps and insert sub-rows
+      var eco = row.dataset.eco;
+      var name = row.dataset.name;
+      var version = row.dataset.version;
+      var depth = parseInt(row.dataset.depth || '0', 10);
+      var url = '/api/package/' + encodeURIComponent(eco) + '/' + name;
+      if (version) url += '/' + encodeURIComponent(version);
+
+      expand.textContent = '\u25BC'; // ▼
+      row.classList.add('expanded');
+
+      fetch(url)
+        .then(function (r) { return r.json(); })
+        .then(function (pkg) {
+          if (!pkg.dependsOn || pkg.dependsOn.length === 0) {
+            // No deps — show a "no dependencies" row
+            var noDep = createDepRow('(no dependencies)', '', '', 0, depth + 1, row.dataset.eco);
+            noDep.classList.add('dep-row', 'dep-empty');
+            noDep.dataset.parentName = name;
+            row.parentNode.insertBefore(noDep, row.nextSibling);
+            return;
+          }
+          // Insert a sub-row for each dependency (reverse so insertion order is correct)
+          var depNames = pkg.dependsOn.slice().reverse();
+          depNames.forEach(function (depName) {
+            // Look up the dep's score from the main table data attributes
+            var depRow = findRowByName(depName);
+            var depScore = depRow ? depRow.dataset.score : '?';
+            var depRisk = depRow ? depRow.dataset.risk : 'UNKNOWN';
+            var depVersion = depRow ? depRow.dataset.version : '';
+
+            var sub = createDepRow(depName, depVersion, depScore, depRisk, depth + 1, eco);
+            sub.dataset.parentName = name;
+            row.parentNode.insertBefore(sub, row.nextSibling);
+          });
+        })
+        .catch(function () {
+          expand.textContent = '\u25B6'; // reset to ▶
+          row.classList.remove('expanded');
+        });
+    });
+  }
+
+  function createDepRow(name, version, score, risk, depth, eco) {
+    var tr = document.createElement('tr');
+    tr.className = 'pkg-row dep-row';
+    tr.dataset.name = name;
+    tr.dataset.version = version || '';
+    tr.dataset.eco = eco;
+    tr.dataset.score = score;
+    tr.dataset.risk = risk;
+    tr.dataset.depth = depth;
+
+    var indent = '';
+    for (var i = 0; i < depth; i++) indent += '\u00A0\u00A0\u00A0';
+
+    var riskLower = String(risk).toLowerCase();
+
+    tr.innerHTML =
+      '<td class="pkg-name">' + indent + '<span class="pkg-expand" title="Show dependencies">&#9654;</span> ' + escapeHtml(name) + '</td>' +
+      '<td class="pkg-version">' + escapeHtml(version) + '</td>' +
+      '<td class="pkg-score">' + escapeHtml(String(score)) + '</td>' +
+      '<td><span class="badge risk-' + riskLower + '">' + escapeHtml(String(risk)) + '</span></td>' +
+      '<td></td>' +
+      '<td></td>';
+    return tr;
+  }
+
+  function collapseRow(row) {
+    var expand = row.querySelector('.pkg-expand');
+    if (expand) expand.textContent = '\u25B6'; // ▶
+    row.classList.remove('expanded');
+
+    // Remove all sub-rows that belong to this row
+    var name = row.dataset.name;
+    var next = row.nextSibling;
+    while (next && next.classList && next.classList.contains('dep-row')) {
+      var toRemove = next;
+      next = next.nextSibling;
+      toRemove.remove();
+    }
+  }
+
+  function findRowByName(name) {
+    if (!table) return null;
+    var rows = table.querySelectorAll('tr.pkg-row');
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].dataset.name === name) return rows[i];
+    }
+    return null;
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
 })();

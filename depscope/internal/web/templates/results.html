@@ -100,7 +100,7 @@
           data-risk="{{.OwnRisk}}"
           data-transitive-risk="{{.TransitiveRisk}}"
           data-constraint="{{.ConstraintType}}">
-        <td class="pkg-name">{{.Name}}</td>
+        <td class="pkg-name"><span class="pkg-expand" title="Show dependencies">&#9654;</span> {{.Name}}</td>
         <td class="pkg-version">{{.Version}}</td>
         <td class="pkg-score">{{.OwnScore}}</td>
         <td><span class="badge risk-{{lower .OwnRisk}}">{{.OwnRisk}}</span></td>
