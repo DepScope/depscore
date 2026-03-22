@@ -2,13 +2,16 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
 	"github.com/depscope/depscope/internal/report"
+	"github.com/depscope/depscope/internal/resolve"
 	"github.com/spf13/cobra"
 )
 
@@ -22,16 +25,23 @@ func init() {
 }
 
 var scanCmd = &cobra.Command{
-	Use:   "scan [dir]",
-	Short: "Scan dependencies in a project directory",
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runScan,
+	Use:   "scan [path-or-url]",
+	Short: "Scan dependencies in a project directory or remote repository",
+	Long: `Scan dependencies in a local project directory or a remote repository.
+
+Examples:
+  depscope scan                              # scan current directory
+  depscope scan ./my-project                 # scan local directory
+  depscope scan https://github.com/org/repo  # scan GitHub repository
+  depscope scan https://gitlab.com/org/repo  # scan GitLab repository`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runScan,
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
-	dir := "."
+	target := "."
 	if len(args) == 1 {
-		dir = args[0]
+		target = args[0]
 	}
 
 	cfg, err := loadConfig(cmd)
@@ -44,20 +54,57 @@ func runScan(cmd *cobra.Command, args []string) error {
 		cfg.Depth = d
 	}
 
-	// Detect ecosystem and parse manifest.
-	eco, err := manifest.DetectEcosystem(dir)
-	if err != nil {
-		return fmt.Errorf("detect ecosystem: %w", err)
+	var pkgs []manifest.Package
+
+	if resolve.IsRemoteURL(target) {
+		// Remote URL path
+		resolver := resolve.DetectResolver(target, resolve.DetectOptions{
+			GitHubToken: os.Getenv("GITHUB_TOKEN"),
+			GitLabToken: os.Getenv("GITLAB_TOKEN"),
+		})
+		files, cleanup, err := resolver.Resolve(cmd.Context(), target)
+		defer cleanup()
+		if err != nil {
+			return fmt.Errorf("resolve remote: %w", err)
+		}
+
+		// Group files by directory and parse each group
+		groups := groupByDirectory(files)
+		for dir, group := range groups {
+			filenames := make([]string, 0, len(group))
+			fileMap := make(map[string][]byte)
+			for _, f := range group {
+				name := filepath.Base(f.Path)
+				filenames = append(filenames, name)
+				fileMap[name] = f.Content
+			}
+			eco, err := manifest.DetectEcosystemFromFiles(filenames)
+			if err != nil {
+				log.Printf("warning: skipping %s: %v", dir, err)
+				continue
+			}
+			parsed, err := manifest.ParserFor(eco).ParseFiles(fileMap)
+			if err != nil {
+				return fmt.Errorf("parse %s: %w", dir, err)
+			}
+			pkgs = append(pkgs, parsed...)
+		}
+	} else {
+		// Local path
+		eco, err := manifest.DetectEcosystem(target)
+		if err != nil {
+			return fmt.Errorf("detect ecosystem: %w", err)
+		}
+		pkgs, err = manifest.ParserFor(eco).Parse(target)
+		if err != nil {
+			return fmt.Errorf("parse manifest: %w", err)
+		}
 	}
 
-	parser := manifest.ParserFor(eco)
-	pkgs, err := parser.Parse(dir)
-	if err != nil {
-		return fmt.Errorf("parse manifest: %w", err)
-	}
-
-	// Build fetchers map for the detected ecosystem.
-	fetchers := buildFetchers(eco)
+	// Determine ecosystem for fetchers. When scanning multiple groups we may
+	// have packages from different ecosystems; for now we build fetchers for
+	// all supported ecosystems.
+	fetchers := buildAllFetchers()
 
 	// Fetch registry data for all packages.
 	fetchResults := registry.FetchAll(pkgs, fetchers, int64(cfg.Concurrency))
@@ -146,4 +193,26 @@ func buildFetchers(eco manifest.Ecosystem) registry.FetchersByEcosystem {
 		fetchers["Go"] = registry.NewGoProxyClient()
 	}
 	return fetchers
+}
+
+// buildAllFetchers returns a FetchersByEcosystem map populated with all
+// supported registry clients. Used when scanning remote repos that may
+// contain multiple ecosystems.
+func buildAllFetchers() registry.FetchersByEcosystem {
+	return registry.FetchersByEcosystem{
+		"PyPI":      registry.NewPyPIClient(),
+		"npm":       registry.NewNPMClient(),
+		"crates.io": registry.NewCratesClient(),
+		"Go":        registry.NewGoProxyClient(),
+	}
+}
+
+// groupByDirectory groups ManifestFiles by their parent directory.
+func groupByDirectory(files []resolve.ManifestFile) map[string][]resolve.ManifestFile {
+	groups := make(map[string][]resolve.ManifestFile)
+	for _, f := range files {
+		dir := filepath.Dir(f.Path)
+		groups[dir] = append(groups[dir], f)
+	}
+	return groups
 }
