@@ -57,10 +57,11 @@ func TestFactorMaintainerCountBoundaries(t *testing.T) {
 		count    int
 		expected int
 	}{
-		{1, 20},
-		{2, 50},
-		{3, 75},
-		{4, 75},
+		{0, 20},
+		{1, 30},  // solo, no recent release
+		{2, 60},
+		{3, 80},
+		{4, 80},
 		{5, 100},
 		{10, 100},
 	}
@@ -69,6 +70,15 @@ func TestFactorMaintainerCountBoundaries(t *testing.T) {
 		score, _ := core.FactorMaintainerCount(info)
 		assert.Equal(t, c.expected, score, "maintainers=%d", c.count)
 	}
+
+	// Solo maintainer with recent release gets a better score
+	activeInfo := &registry.PackageInfo{
+		MaintainerCount: 1,
+		LastReleaseAt:   time.Now().Add(-30 * 24 * time.Hour),
+	}
+	activeScore, activeIssues := core.FactorMaintainerCount(activeInfo)
+	assert.Equal(t, 45, activeScore, "active solo maintainer")
+	assert.Equal(t, core.SeverityLow, activeIssues[0].Severity)
 }
 
 func TestFactorDownloadVelocity(t *testing.T) {

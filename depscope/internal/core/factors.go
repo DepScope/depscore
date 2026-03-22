@@ -39,17 +39,30 @@ func FactorReleaseRecency(info *registry.PackageInfo) (int, []Issue) {
 }
 
 // FactorMaintainerCount scores the number of maintainers.
-// 1=20, 2=50, 3-4=75, 5+=100
+// Solo maintainer scoring is context-aware: if the package has recent
+// releases (<1yr), the bus-factor risk is lower severity since the
+// maintainer is clearly active.
+//
+// 0=20, 1(stale)=30, 1(active)=45, 2=60, 3-4=80, 5+=100
 func FactorMaintainerCount(info *registry.PackageInfo) (int, []Issue) {
 	switch {
 	case info.MaintainerCount >= 5:
 		return 100, nil
 	case info.MaintainerCount >= 3:
-		return 75, nil
+		return 80, nil
 	case info.MaintainerCount == 2:
-		return 50, nil
+		return 60, nil
 	case info.MaintainerCount == 1:
-		return 20, []Issue{{
+		// Active solo maintainer is less risky than stale solo maintainer
+		recentRelease := !info.LastReleaseAt.IsZero() && time.Since(info.LastReleaseAt) < 365*24*time.Hour
+		if recentRelease {
+			return 45, []Issue{{
+				Package:  info.Name,
+				Severity: SeverityLow,
+				Message:  "single maintainer with recent activity; bus-factor risk",
+			}}
+		}
+		return 30, []Issue{{
 			Package:  info.Name,
 			Severity: SeverityMedium,
 			Message:  "single maintainer; bus-factor risk",

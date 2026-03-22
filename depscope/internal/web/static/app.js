@@ -249,7 +249,7 @@
     }
 
     var checksHeader = document.createElement('h3');
-    checksHeader.textContent = 'Security Checks';
+    checksHeader.textContent = 'Reputation Checks';
     panelBody.appendChild(checksHeader);
 
     var checksList = document.createElement('ul');
