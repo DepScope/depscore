@@ -61,11 +61,14 @@ type pypiResponse struct {
 }
 
 type pypiInfo struct {
-	Name        string            `json:"name"`
-	Author      string            `json:"author"`
-	HomePage    string            `json:"home_page"`
-	Classifiers []string          `json:"classifiers"`
-	ProjectURLs map[string]string `json:"project_urls"`
+	Name            string            `json:"name"`
+	Author          string            `json:"author"`
+	AuthorEmail     string            `json:"author_email"`
+	Maintainer      string            `json:"maintainer"`
+	MaintainerEmail string            `json:"maintainer_email"`
+	HomePage        string            `json:"home_page"`
+	Classifiers     []string          `json:"classifiers"`
+	ProjectURLs     map[string]string `json:"project_urls"`
 }
 
 type pypiReleaseFile struct {
@@ -79,10 +82,22 @@ func (r pypiResponse) toPackageInfo(requestedVersion string) *PackageInfo {
 		Ecosystem: "PyPI",
 	}
 
-	// MaintainerCount: treat non-empty author as 1 maintainer.
-	if r.Info.Author != "" {
-		info.MaintainerCount = 1
+	// MaintainerCount: count unique people from author, author_email, maintainer, maintainer_email.
+	people := make(map[string]bool)
+	for _, field := range []string{r.Info.Author, r.Info.Maintainer} {
+		if field != "" {
+			people[strings.ToLower(strings.TrimSpace(field))] = true
+		}
 	}
+	for _, field := range []string{r.Info.AuthorEmail, r.Info.MaintainerEmail} {
+		for _, email := range strings.Split(field, ",") {
+			email = strings.TrimSpace(email)
+			if email != "" {
+				people[strings.ToLower(email)] = true
+			}
+		}
+	}
+	info.MaintainerCount = len(people)
 
 	// SourceRepoURL: prefer project_urls["Source"], fall back to home_page.
 	if src, ok := r.Info.ProjectURLs["Source"]; ok && src != "" {
