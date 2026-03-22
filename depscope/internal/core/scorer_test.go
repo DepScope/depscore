@@ -41,7 +41,7 @@ func TestScorerHealthyPackage(t *testing.T) {
 	fr := &registry.FetchResult{Info: healthyInfo()}
 	weights := config.Enterprise().Weights
 
-	result := core.Score(pkg, fr, weights)
+	result := core.Score(pkg, fr, nil, weights)
 
 	// A well-maintained package should score above the enterprise threshold of 70.
 	assert.Greater(t, result.OwnScore, 70, "healthy package should score above enterprise threshold")
@@ -58,7 +58,7 @@ func TestScorerAbandonedPackage(t *testing.T) {
 	fr := &registry.FetchResult{Info: abandonedInfo()}
 	weights := config.Enterprise().Weights
 
-	result := core.Score(pkg, fr, weights)
+	result := core.Score(pkg, fr, nil, weights)
 
 	// Solo maintainer, 4yr old release, major constraint should score poorly.
 	assert.Less(t, result.OwnScore, 50, "abandoned package should score below 50")
@@ -83,7 +83,7 @@ func TestScorerGoPackageSkipsDownloadVelocity(t *testing.T) {
 
 	// Should not panic; download velocity weight should be redistributed.
 	assert.NotPanics(t, func() {
-		result := core.Score(pkg, fr, weights)
+		result := core.Score(pkg, fr, nil, weights)
 		assert.Greater(t, result.OwnScore, 0)
 	})
 }
@@ -93,7 +93,7 @@ func TestScorerNilFetchResult(t *testing.T) {
 		Name:           "missing",
 		ConstraintType: manifest.ConstraintMinor,
 	}
-	result := core.Score(pkg, nil, config.Enterprise().Weights)
+	result := core.Score(pkg, nil, nil, config.Enterprise().Weights)
 	assert.Equal(t, 0, result.OwnScore)
 	assert.NotEmpty(t, result.Issues)
 }
@@ -104,7 +104,7 @@ func TestScorerFetchError(t *testing.T) {
 		ConstraintType: manifest.ConstraintMinor,
 	}
 	fr := &registry.FetchResult{Err: assert.AnError}
-	result := core.Score(pkg, fr, config.Enterprise().Weights)
+	result := core.Score(pkg, fr, nil, config.Enterprise().Weights)
 	assert.Equal(t, 0, result.OwnScore)
 	assert.NotEmpty(t, result.Issues)
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
+	"github.com/depscope/depscope/internal/vcs"
 )
 
 // clamp constrains val to [lo, hi].
@@ -72,7 +73,7 @@ func redistributeUnavailable(factors []weightedScore, unavailable map[string]boo
 
 // Score computes the OwnScore for a single package and returns a PackageResult.
 // TransitiveRiskScore defaults to 100 (no children known yet; propagator sets it).
-func Score(pkg manifest.Package, fetchResult *registry.FetchResult, weights config.Weights) PackageResult {
+func Score(pkg manifest.Package, fetchResult *registry.FetchResult, repoInfo *vcs.RepoInfo, weights config.Weights) PackageResult {
 	result := PackageResult{
 		Name:                pkg.Name,
 		Version:             pkg.ResolvedVersion,
@@ -107,17 +108,22 @@ func Score(pkg manifest.Package, fetchResult *registry.FetchResult, weights conf
 	maintScore, maintIssues := FactorMaintainerCount(info)
 	dlScore, dlIssues := FactorDownloadVelocity(info)
 
-	// VCS factors: neutral score with INFO-level explanation when no repo data.
+	// VCS factors: use real repo data when available, neutral with explanation otherwise.
 	var issueScore, orgScore, healthScore int
 	var issueIssues, orgIssues, healthIssues []Issue
 
-	issueScore = 50
-	orgScore = 50
-	healthScore = 50
-	// Explain the neutral scores so users understand
-	healthIssues = []Issue{{Severity: SeverityInfo, Message: "repository health not checked (no VCS data)"}}
-	issueIssues = []Issue{{Severity: SeverityInfo, Message: "open issue ratio not checked (no VCS data)"}}
-	orgIssues = []Issue{{Severity: SeverityInfo, Message: "organization backing not checked (no VCS data)"}}
+	if repoInfo != nil {
+		issueScore, issueIssues = FactorOpenIssueRatio(repoInfo)
+		orgScore, orgIssues = FactorOrgBacking(repoInfo, info)
+		healthScore, healthIssues = FactorRepoHealth(repoInfo)
+	} else {
+		issueScore = 50
+		orgScore = 50
+		healthScore = 50
+		healthIssues = []Issue{{Severity: SeverityInfo, Message: "repository health not checked (no VCS data)"}}
+		issueIssues = []Issue{{Severity: SeverityInfo, Message: "open issue ratio not checked (no VCS data)"}}
+		orgIssues = []Issue{{Severity: SeverityInfo, Message: "organization backing not checked (no VCS data)"}}
+	}
 
 	// Build weighted factor list.
 	factors := []weightedScore{

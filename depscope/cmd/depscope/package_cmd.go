@@ -59,7 +59,7 @@ func runPackageCheck(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg := config.Enterprise()
-	result := core.Score(pkg, fr, cfg.Weights)
+	result := core.Score(pkg, fr, nil, cfg.Weights)
 
 	fmt.Fprintf(os.Stdout, "Package:  %s@%s\n", result.Name, result.Version)
 	fmt.Fprintf(os.Stdout, "Score:    %d\n", result.OwnScore)

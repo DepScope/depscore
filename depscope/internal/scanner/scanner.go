@@ -12,6 +12,7 @@ import (
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
 	"github.com/depscope/depscope/internal/resolve"
+	"github.com/depscope/depscope/internal/vcs"
 	"github.com/depscope/depscope/internal/vuln"
 )
 
@@ -96,13 +97,43 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 
 	fetchResults := registry.FetchAll(pkgs, fetchers, int64(cfg.Concurrency))
 
+	// Create VCS client for repo health lookups
+	var vcsClient vcs.Client
+	ghToken := os.Getenv("GITHUB_TOKEN")
+	if ghToken != "" {
+		vcsClient = vcs.NewGitHubClient(vcs.WithToken(ghToken))
+	} else {
+		vcsClient = vcs.NewGitHubClient() // unauthenticated, 60 req/hr
+	}
+
+	// Cache VCS lookups by repo URL to avoid redundant API calls
+	repoCache := make(map[string]*vcs.RepoInfo)
+
 	// Query OSV for vulnerabilities
 	osvClient := vuln.NewOSVClient()
 
 	scored := make([]core.PackageResult, 0, len(pkgs))
 	for _, pkg := range pkgs {
 		fr := fetchResults[pkg.Key()]
-		result := core.Score(pkg, fr, cfg.Weights)
+
+		// Fetch VCS data if registry gave us a source repo URL
+		var repoInfo *vcs.RepoInfo
+		if fr != nil && fr.Info != nil && fr.Info.SourceRepoURL != "" {
+			repoURL := fr.Info.SourceRepoURL
+			if cached, ok := repoCache[repoURL]; ok {
+				repoInfo = cached
+			} else {
+				ri, err := vcsClient.RepoFromURL(repoURL)
+				if err != nil {
+					log.Printf("VCS lookup failed for %s: %v", repoURL, err)
+				} else {
+					repoInfo = ri
+				}
+				repoCache[repoURL] = repoInfo // cache even nil (failed lookup)
+			}
+		}
+
+		result := core.Score(pkg, fr, repoInfo, cfg.Weights)
 
 		// Lookup CVEs via OSV
 		if pkg.ResolvedVersion != "" {
