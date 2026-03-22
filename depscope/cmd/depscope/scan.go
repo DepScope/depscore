@@ -29,11 +29,19 @@ var scanCmd = &cobra.Command{
 	Short: "Scan dependencies in a project directory or remote repository",
 	Long: `Scan dependencies in a local project directory or a remote repository.
 
+The target may be a local path (default: current directory) or a remote
+repository URL. Remote URLs are resolved via the GitHub/GitLab API or
+by cloning the repository over git. Set GITHUB_TOKEN / GITLAB_TOKEN
+environment variables to authenticate private repositories.
+
 Examples:
-  depscope scan                              # scan current directory
-  depscope scan ./my-project                 # scan local directory
-  depscope scan https://github.com/org/repo  # scan GitHub repository
-  depscope scan https://gitlab.com/org/repo  # scan GitLab repository`,
+  depscope scan                                           # current directory
+  depscope scan ./my-project                             # local path
+  depscope scan https://github.com/org/repo              # GitHub default branch
+  depscope scan https://github.com/org/repo/tree/main    # specific branch
+  depscope scan https://gitlab.com/org/repo              # GitLab default branch
+  depscope scan https://gitlab.com/org/repo/-/tree/v2    # specific ref
+  depscope scan git@github.com:org/repo.git              # SSH URL (git clone)`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runScan,
 }
