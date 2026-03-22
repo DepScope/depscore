@@ -44,7 +44,7 @@ func NewServer(opts Options) (*Server, error) {
 	}
 
 	funcMap := template.FuncMap{
-		"lower":          strings.ToLower,
+		"lower":          func(v any) string { return strings.ToLower(fmt.Sprint(v)) },
 		"riskColor":      riskColorName,
 		"scoreDashOffset": scoreDashOffset,
 		"issueCounts":    issueCounts,
