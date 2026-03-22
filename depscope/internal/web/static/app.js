@@ -92,56 +92,135 @@
   function openPanel(data) {
     if (!panel || !panelBody) return;
 
-    // Clear existing content via DOM (no innerHTML with user data)
+    // Clear existing content
     while (panelBody.firstChild) {
       panelBody.removeChild(panelBody.firstChild);
     }
 
+    // Show loading state
+    var loading = document.createElement('p');
+    loading.textContent = 'Loading...';
+    loading.className = 'panel-loading';
+    panelBody.appendChild(loading);
+    panel.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    // Fetch full detail from API
+    var eco = encodeURIComponent(data.eco || '');
+    var name = data.name || '';
+    var version = encodeURIComponent(data.version || '');
+    var url = '/api/package/' + eco + '/' + name + '/' + version;
+
+    fetch(url)
+      .then(function (resp) { return resp.json(); })
+      .then(function (pkg) { renderPanel(pkg); })
+      .catch(function () { renderPanelFallback(data); });
+  }
+
+  function renderPanel(pkg) {
+    while (panelBody.firstChild) panelBody.removeChild(panelBody.firstChild);
+
+    // Header
     var h2 = document.createElement('h2');
-    h2.textContent = data.name || '';
+    h2.textContent = pkg.name;
     panelBody.appendChild(h2);
 
     var meta = document.createElement('p');
     meta.className = 'panel-meta';
-    meta.textContent = data.eco || '';
+    meta.textContent = pkg.ecosystem + ' · ' + (pkg.version || 'unknown version');
     panelBody.appendChild(meta);
 
-    var rows = [
-      ['Version',        data.version || ''],
-      ['Own Score',      data.score || ''],
-      ['Own Risk',       data.risk || '',       'badge risk-' + (data.risk || 'unknown').toLowerCase()],
-      ['Transitive Risk',data.transitiveRisk || '', 'badge risk-' + (data.transitiveRisk || 'unknown').toLowerCase()],
-      ['Constraint',     data.constraint || ''],
-    ];
+    // Score section
+    var scoreSection = document.createElement('div');
+    scoreSection.className = 'panel-section';
 
-    rows.forEach(function (r) {
+    var scoreRow = document.createElement('div');
+    scoreRow.className = 'panel-score-row';
+    var scoreLabel = document.createElement('span');
+    scoreLabel.textContent = 'Score: ' + pkg.score;
+    var scoreBadge = document.createElement('span');
+    scoreBadge.className = 'badge risk-' + String(pkg.risk).toLowerCase();
+    scoreBadge.textContent = pkg.risk;
+    scoreRow.appendChild(scoreLabel);
+    scoreRow.appendChild(scoreBadge);
+    scoreSection.appendChild(scoreRow);
+
+    if (pkg.transitiveRisk && pkg.transitiveRisk !== pkg.risk) {
+      var transRow = document.createElement('div');
+      transRow.className = 'panel-score-row';
+      var transLabel = document.createElement('span');
+      transLabel.textContent = 'Transitive: ' + pkg.transitiveScore;
+      var transBadge = document.createElement('span');
+      transBadge.className = 'badge risk-' + String(pkg.transitiveRisk).toLowerCase();
+      transBadge.textContent = pkg.transitiveRisk;
+      transRow.appendChild(transLabel);
+      transRow.appendChild(transBadge);
+      scoreSection.appendChild(transRow);
+    }
+
+    panelBody.appendChild(scoreSection);
+
+    // Info rows
+    var infoRows = [
+      ['Constraint', pkg.constraintType],
+      ['Depth', pkg.depth === 1 ? 'Direct dependency' : 'Transitive (depth ' + pkg.depth + ')'],
+      ['Depends on', pkg.dependsOn + ' packages'],
+      ['Depended on by', pkg.dependedOn + ' packages'],
+    ];
+    var infoSection = document.createElement('div');
+    infoSection.className = 'panel-section';
+    infoRows.forEach(function (r) {
       var div = document.createElement('div');
       div.className = 'panel-row';
-
       var key = document.createElement('span');
       key.className = 'panel-row-key';
       key.textContent = r[0];
-
-      var valWrap = document.createElement('span');
-      valWrap.className = 'panel-row-value';
-
-      if (r[2]) {
-        // Badge variant
-        var badge = document.createElement('span');
-        badge.className = r[2];
-        badge.textContent = r[1];
-        valWrap.appendChild(badge);
-      } else {
-        valWrap.textContent = r[1];
-      }
-
+      var val = document.createElement('span');
+      val.className = 'panel-row-value';
+      val.textContent = r[1];
       div.appendChild(key);
-      div.appendChild(valWrap);
-      panelBody.appendChild(div);
+      div.appendChild(val);
+      infoSection.appendChild(div);
     });
+    panelBody.appendChild(infoSection);
 
-    panel.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    // Issues
+    if (pkg.issues && pkg.issues.length > 0) {
+      var issueHeader = document.createElement('h3');
+      issueHeader.textContent = 'Issues (' + pkg.issues.length + ')';
+      panelBody.appendChild(issueHeader);
+
+      var issueList = document.createElement('ul');
+      issueList.className = 'panel-issue-list';
+      pkg.issues.forEach(function (iss) {
+        var li = document.createElement('li');
+        li.className = 'panel-issue';
+        var sev = document.createElement('span');
+        sev.className = 'badge sev-' + String(iss.Severity).toLowerCase();
+        sev.textContent = iss.Severity;
+        var msg = document.createElement('span');
+        msg.textContent = ' ' + iss.Message;
+        li.appendChild(sev);
+        li.appendChild(msg);
+        issueList.appendChild(li);
+      });
+      panelBody.appendChild(issueList);
+    } else {
+      var noIssues = document.createElement('p');
+      noIssues.className = 'panel-no-issues';
+      noIssues.textContent = 'No issues found';
+      panelBody.appendChild(noIssues);
+    }
+  }
+
+  function renderPanelFallback(data) {
+    while (panelBody.firstChild) panelBody.removeChild(panelBody.firstChild);
+    var h2 = document.createElement('h2');
+    h2.textContent = data.name || '';
+    panelBody.appendChild(h2);
+    var p = document.createElement('p');
+    p.textContent = 'Could not load package details.';
+    panelBody.appendChild(p);
   }
 
   function closePanel() {

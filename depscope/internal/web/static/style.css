@@ -633,6 +633,56 @@ details[open] .issue-summary-title::before { transform: rotate(90deg); }
 #panel-body .panel-row-key   { color: var(--text-secondary); }
 #panel-body .panel-row-value { font-weight: 500; }
 
+#panel-body .panel-section {
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+#panel-body .panel-score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#panel-body h3 {
+  margin: 16px 0 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#panel-body .panel-issue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#panel-body .panel-issue {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+#panel-body .panel-issue:last-child { border-bottom: none; }
+
+#panel-body .panel-no-issues {
+  color: var(--risk-low);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+#panel-body .panel-loading {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 40px 0;
+}
+
 /* =========================================================
    Responsive
    ========================================================= */
