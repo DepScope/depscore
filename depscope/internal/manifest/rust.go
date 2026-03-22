@@ -22,37 +22,69 @@ func (p *RustParser) ParseFiles(files map[string][]byte) ([]Package, error) {
 	if !ok {
 		return nil, fmt.Errorf("Cargo.toml not found in files")
 	}
-	constraints, rootName, err := parseCargoTomlBytes(tomlData)
+	constraints, rootName, workspaceMembers, err := parseCargoTomlBytes(tomlData)
 	if err != nil {
 		return nil, fmt.Errorf("parsing Cargo.toml: %w", err)
+	}
+
+	// Build a set of internal package names to exclude from Cargo.lock
+	excludeNames := make(map[string]bool)
+	excludeNames[rootName] = true
+	for _, m := range workspaceMembers {
+		// Workspace member paths like "tokio", "tokio-macros" — use the last path segment as the crate name
+		parts := strings.Split(m, "/")
+		excludeNames[parts[len(parts)-1]] = true
 	}
 
 	resolved := make(map[string]string)
 	parents := make(map[string][]string)
 	if lockData, ok := files["Cargo.lock"]; ok {
-		resolved, parents, err = parseCargoLockBytes(lockData, rootName)
+		resolved, parents, err = parseCargoLockBytes(lockData, excludeNames)
 		if err != nil {
 			return nil, fmt.Errorf("parsing Cargo.lock: %w", err)
 		}
 	}
 
 	var pkgs []Package
-	for name, constraint := range constraints {
-		resolvedVer := resolved[name]
-		depth := 1
-		if len(parents[name]) > 0 {
-			depth = 2
+
+	if len(constraints) > 0 {
+		// Normal case: Cargo.toml has [dependencies]
+		for name, constraint := range constraints {
+			resolvedVer := resolved[name]
+			depth := 1
+			if len(parents[name]) > 0 {
+				depth = 2
+			}
+			pkgs = append(pkgs, Package{
+				Name:            name,
+				ResolvedVersion: resolvedVer,
+				Constraint:      constraint,
+				ConstraintType:  cargoConstraintType(constraint),
+				Ecosystem:       EcosystemRust,
+				Depth:           depth,
+				Parents:         parents[name],
+			})
 		}
-		pkgs = append(pkgs, Package{
-			Name:            name,
-			ResolvedVersion: resolvedVer,
-			Constraint:      constraint,
-			ConstraintType:  cargoConstraintType(constraint),
-			Ecosystem:       EcosystemRust,
-			Depth:           depth,
-			Parents:         parents[name],
-		})
+	} else if len(resolved) > 0 {
+		// Workspace case: no [dependencies] in root Cargo.toml,
+		// but Cargo.lock has all resolved packages for the workspace.
+		for name, version := range resolved {
+			depth := 1
+			if len(parents[name]) > 0 {
+				depth = 2
+			}
+			pkgs = append(pkgs, Package{
+				Name:            name,
+				ResolvedVersion: version,
+				Constraint:      version,
+				ConstraintType:  ConstraintExact,
+				Ecosystem:       EcosystemRust,
+				Depth:           depth,
+				Parents:         parents[name],
+			})
+		}
 	}
+
 	return pkgs, nil
 }
 
@@ -99,11 +131,10 @@ func cargoConstraintType(constraint string) ConstraintType {
 
 // parseCargoTomlBytes reads [dependencies] from Cargo.toml bytes, returning a map of
 // package name → version requirement string, plus the root package name.
-func parseCargoTomlBytes(data []byte) (constraints map[string]string, rootName string, err error) {
-	// Use a raw map to handle mixed string/table dependency values
+func parseCargoTomlBytes(data []byte) (constraints map[string]string, rootName string, workspaceMembers []string, err error) {
 	var raw map[string]any
 	if err := toml.Unmarshal(data, &raw); err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
 
 	// Extract root package name
@@ -113,25 +144,34 @@ func parseCargoTomlBytes(data []byte) (constraints map[string]string, rootName s
 		}
 	}
 
+	// Extract workspace members
+	if ws, ok := raw["workspace"].(map[string]any); ok {
+		if members, ok := ws["members"].([]any); ok {
+			for _, m := range members {
+				if s, ok := m.(string); ok {
+					workspaceMembers = append(workspaceMembers, s)
+				}
+			}
+		}
+	}
+
 	constraints = make(map[string]string)
 	depsRaw, ok := raw["dependencies"].(map[string]any)
 	if !ok {
-		return constraints, rootName, nil
+		return constraints, rootName, workspaceMembers, nil
 	}
 
 	for name, val := range depsRaw {
 		switch v := val.(type) {
 		case string:
-			// e.g. reqwest = "=0.11.23"
 			constraints[name] = v
 		case map[string]any:
-			// e.g. serde = { version = "1.0", features = [...] }
 			if ver, ok := v["version"].(string); ok {
 				constraints[name] = ver
 			}
 		}
 	}
-	return constraints, rootName, nil
+	return constraints, rootName, workspaceMembers, nil
 }
 
 // lockPackage is one [[package]] entry in Cargo.lock.
@@ -148,7 +188,7 @@ type lockPackage struct {
 // The root package (rootName) is excluded from parents as a dependency target
 // so it doesn't pollute child parent lists, but its declared deps are still
 // used to build the parent map.
-func parseCargoLockBytes(data []byte, rootName string) (resolved map[string]string, parents map[string][]string, err error) {
+func parseCargoLockBytes(data []byte, excludeNames map[string]bool) (resolved map[string]string, parents map[string][]string, err error) {
 	var lock struct {
 		Package []lockPackage `toml:"package"`
 	}
@@ -160,11 +200,10 @@ func parseCargoLockBytes(data []byte, rootName string) (resolved map[string]stri
 	parents = make(map[string][]string)
 
 	for _, pkg := range lock.Package {
-		if pkg.Name != rootName {
+		if !excludeNames[pkg.Name] {
 			resolved[pkg.Name] = pkg.Version
 		}
 
-		// Each entry in pkg.Dependencies has the format "name version"
 		for _, dep := range pkg.Dependencies {
 			depName := strings.SplitN(dep, " ", 2)[0]
 			parents[depName] = append(parents[depName], pkg.Name)

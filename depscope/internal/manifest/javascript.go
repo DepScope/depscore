@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -32,6 +33,11 @@ func (p *JavaScriptParser) ParseFiles(files map[string][]byte) ([]Package, error
 		if err != nil {
 			return nil, fmt.Errorf("parsing package-lock.json: %w", err)
 		}
+	} else if lockData, ok := files["pnpm-lock.yaml"]; ok {
+		resolved, err = parsePnpmLockYAML(lockData)
+		if err != nil {
+			return nil, fmt.Errorf("parsing pnpm-lock.yaml: %w", err)
+		}
 	}
 
 	var pkgs []Package
@@ -58,9 +64,12 @@ func (p *JavaScriptParser) Parse(dir string) ([]Package, error) {
 	}
 	files["package.json"] = pkgData
 
-	lockData, err := os.ReadFile(filepath.Join(dir, "package-lock.json"))
-	if err == nil {
-		files["package-lock.json"] = lockData
+	for _, lockName := range []string{"package-lock.json", "pnpm-lock.yaml", "bun.lock"} {
+		lockData, err := os.ReadFile(filepath.Join(dir, lockName))
+		if err == nil {
+			files[lockName] = lockData
+			break // use the first lockfile found
+		}
 	}
 
 	return p.ParseFiles(files)
@@ -87,19 +96,62 @@ func npmConstraintType(constraint string) ConstraintType {
 	}
 }
 
-// parsePackageJSONBytes reads the dependencies map from package.json bytes.
+// parsePackageJSONBytes reads dependencies + devDependencies from package.json bytes.
 func parsePackageJSONBytes(data []byte) (map[string]string, error) {
 	var pkg struct {
-		Dependencies map[string]string `json:"dependencies"`
+		Dependencies    map[string]string `json:"dependencies"`
+		DevDependencies map[string]string `json:"devDependencies"`
 	}
 	if err := json.Unmarshal(data, &pkg); err != nil {
 		return nil, err
 	}
 
-	if pkg.Dependencies == nil {
-		return make(map[string]string), nil
+	merged := make(map[string]string)
+	for k, v := range pkg.Dependencies {
+		merged[k] = v
 	}
-	return pkg.Dependencies, nil
+	for k, v := range pkg.DevDependencies {
+		if _, exists := merged[k]; !exists {
+			merged[k] = v
+		}
+	}
+	return merged, nil
+}
+
+// parsePnpmLockYAML extracts resolved versions from a pnpm-lock.yaml file.
+// Packages are listed under "packages:" with keys like "'@babel/parser@7.29.0':" or "'express@4.18.2':".
+// We parse the key to extract name@version without a full YAML parser.
+func parsePnpmLockYAML(data []byte) (map[string]string, error) {
+	resolved := make(map[string]string)
+	scanner := bufio.NewScanner(strings.NewReader(string(data)))
+	inPackages := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "packages:" {
+			inPackages = true
+			continue
+		}
+		if inPackages {
+			// New top-level section ends "packages:"
+			if len(line) > 0 && line[0] != ' ' && line[0] != '\'' {
+				break
+			}
+			// Package entries look like: "  '@babel/parser@7.29.0':" or "  'express@4.18.2':"
+			trimmed := strings.TrimSpace(line)
+			if !strings.HasSuffix(trimmed, ":") {
+				continue
+			}
+			trimmed = strings.TrimSuffix(trimmed, ":")
+			trimmed = strings.Trim(trimmed, "'\"")
+			// Find last @ that separates name from version (scoped packages have @ at start)
+			if lastAt := strings.LastIndex(trimmed, "@"); lastAt > 0 {
+				name := trimmed[:lastAt]
+				version := trimmed[lastAt+1:]
+				resolved[name] = version
+			}
+		}
+	}
+	return resolved, scanner.Err()
 }
 
 // packageLockEntry is one entry in the "packages" map of package-lock.json v3.
