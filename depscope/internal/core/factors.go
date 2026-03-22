@@ -147,12 +147,18 @@ func FactorVersionPinning(ct manifest.ConstraintType) (int, []Issue) {
 	case manifest.ConstraintExact:
 		return 100, nil
 	case manifest.ConstraintPatch:
-		return 75, nil
+		return 75, []Issue{{
+			Severity: SeverityInfo,
+			Message:  "patch-level version constraint (allows patch updates)",
+		}}
 	case manifest.ConstraintMinor:
-		return 50, nil
+		return 50, []Issue{{
+			Severity: SeverityLow,
+			Message:  "minor-level version constraint (allows minor+patch updates)",
+		}}
 	default: // ConstraintMajor or unknown
 		return 25, []Issue{{
-			Severity: SeverityLow,
+			Severity: SeverityMedium,
 			Message:  fmt.Sprintf("loose version constraint %q allows major updates", ct),
 		}}
 	}

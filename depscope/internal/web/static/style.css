@@ -715,6 +715,7 @@ details[open] .issue-summary-title::before { transform: rotate(90deg); }
 .check-icon { font-weight: bold; }
 .check-pass { color: var(--risk-low); }
 .check-fail { color: var(--risk-critical); }
+.check-info { color: var(--risk-medium); }
 
 .panel-check-label { font-weight: 500; }
 .panel-check-detail {

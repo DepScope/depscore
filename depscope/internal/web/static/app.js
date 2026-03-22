@@ -263,8 +263,14 @@
       label.textContent = checkLabels[check];
 
       if (failedChecks[check]) {
-        icon.className = 'check-icon check-fail';
-        icon.textContent = '\u2717 ';
+        var sev = String(failedChecks[check].Severity).toLowerCase();
+        if (sev === 'info') {
+          icon.className = 'check-icon check-info';
+          icon.textContent = '\u2139 ';
+        } else {
+          icon.className = 'check-icon check-fail';
+          icon.textContent = '\u2717 ';
+        }
         var detail = document.createElement('span');
         detail.className = 'panel-check-detail';
         detail.textContent = ' — ' + failedChecks[check].Message;

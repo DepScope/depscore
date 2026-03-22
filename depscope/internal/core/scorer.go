@@ -107,19 +107,17 @@ func Score(pkg manifest.Package, fetchResult *registry.FetchResult, weights conf
 	maintScore, maintIssues := FactorMaintainerCount(info)
 	dlScore, dlIssues := FactorDownloadVelocity(info)
 
-	// VCS factors: skip if no repo info is available (scores neutral, no misleading issues).
+	// VCS factors: neutral score with INFO-level explanation when no repo data.
 	var issueScore, orgScore, healthScore int
 	var issueIssues, orgIssues, healthIssues []Issue
-	hasVCS := false
 
-	issueScore = 50 // neutral default
+	issueScore = 50
 	orgScore = 50
 	healthScore = 50
-
-	if hasVCS {
-		// Future: when VCS data is passed via FetchResult, score these factors.
-		// For now, they get neutral scores and generate no issues.
-	}
+	// Explain the neutral scores so users understand
+	healthIssues = []Issue{{Severity: SeverityInfo, Message: "repository health not checked (no VCS data)"}}
+	issueIssues = []Issue{{Severity: SeverityInfo, Message: "open issue ratio not checked (no VCS data)"}}
+	orgIssues = []Issue{{Severity: SeverityInfo, Message: "organization backing not checked (no VCS data)"}}
 
 	// Build weighted factor list.
 	factors := []weightedScore{
