@@ -27,11 +27,17 @@ func runServer(cmd *cobra.Command, args []string) error {
 	port, _ := cmd.Flags().GetInt("port")
 	storeName, _ := cmd.Flags().GetString("store")
 
-	var s store.ScanStore
+	var (
+		s   store.ScanStore
+		err error
+	)
 	switch storeName {
 	case "dynamo":
-		// DynamoDB store will be implemented in Task 8
-		return fmt.Errorf("dynamo store not yet implemented")
+		tableName, _ := cmd.Flags().GetString("table")
+		s, err = store.NewDynamoStore(cmd.Context(), tableName)
+		if err != nil {
+			return fmt.Errorf("create dynamo store: %w", err)
+		}
 	default:
 		s = store.NewMemoryStore()
 	}
