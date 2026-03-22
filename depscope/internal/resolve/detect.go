@@ -8,6 +8,7 @@ import (
 type DetectOptions struct {
 	GitHubToken string
 	GitLabToken string
+	MaxFiles    int // max manifest files to fetch per resolve (0 = default 5000)
 }
 
 func IsRemoteURL(arg string) bool {
@@ -25,14 +26,18 @@ type TypedResolver interface {
 }
 
 func DetectResolver(rawURL string, opts DetectOptions) TypedResolver {
+	var resolveOpts []Option
+	if opts.MaxFiles > 0 {
+		resolveOpts = append(resolveOpts, WithMaxFiles(opts.MaxFiles))
+	}
 	host := extractHost(rawURL)
 	switch {
 	case strings.Contains(host, "github.com"):
-		return NewGitHubResolver(opts.GitHubToken)
+		return NewGitHubResolver(opts.GitHubToken, resolveOpts...)
 	case strings.Contains(host, "gitlab.com"):
-		return NewGitLabResolver(opts.GitLabToken)
+		return NewGitLabResolver(opts.GitLabToken, resolveOpts...)
 	default:
-		return NewGitCloneResolver()
+		return NewGitCloneResolver(resolveOpts...)
 	}
 }
 
@@ -86,9 +91,14 @@ func extractHost(rawURL string) string {
 type Option func(*resolverOptions)
 
 type resolverOptions struct {
-	baseURL string
+	baseURL  string
+	maxFiles int
 }
 
 func WithBaseURL(url string) Option {
 	return func(o *resolverOptions) { o.baseURL = url }
+}
+
+func WithMaxFiles(n int) Option {
+	return func(o *resolverOptions) { o.maxFiles = n }
 }

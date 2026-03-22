@@ -12,10 +12,13 @@ import (
 	"strings"
 )
 
+const DefaultMaxFiles = 5000
+
 type GitHubResolver struct {
-	token   string
-	baseURL string
-	client  *http.Client
+	token    string
+	baseURL  string
+	maxFiles int
+	client   *http.Client
 }
 
 func NewGitHubResolver(token string, opts ...Option) *GitHubResolver {
@@ -23,7 +26,11 @@ func NewGitHubResolver(token string, opts ...Option) *GitHubResolver {
 	for _, opt := range opts {
 		opt(o)
 	}
-	return &GitHubResolver{token: token, baseURL: o.baseURL, client: &http.Client{}}
+	mf := o.maxFiles
+	if mf <= 0 {
+		mf = DefaultMaxFiles
+	}
+	return &GitHubResolver{token: token, baseURL: o.baseURL, maxFiles: mf, client: &http.Client{}}
 }
 
 func (r *GitHubResolver) Type() string { return "github" }
@@ -66,6 +73,12 @@ func (r *GitHubResolver) Resolve(ctx context.Context, rawURL string) ([]Manifest
 		if MatchesManifest(p) {
 			manifestPaths = append(manifestPaths, p)
 		}
+	}
+
+	// Cap the number of files to fetch
+	if len(manifestPaths) > r.maxFiles {
+		log.Printf("warning: found %d manifest files, capping at %d", len(manifestPaths), r.maxFiles)
+		manifestPaths = manifestPaths[:r.maxFiles]
 	}
 
 	var files []ManifestFile

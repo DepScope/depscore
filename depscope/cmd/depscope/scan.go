@@ -19,7 +19,8 @@ func init() {
 	scanCmd.Flags().String("profile", "enterprise", "scoring profile: hobby, opensource, enterprise")
 	scanCmd.Flags().String("config", "", "path to a depscope config file")
 	scanCmd.Flags().String("output", "text", "output format: text, json, sarif")
-	scanCmd.Flags().Int("depth", 0, "max dependency depth (0 = use profile default)")
+	scanCmd.Flags().Int("depth", 10, "max dependency depth")
+	scanCmd.Flags().Int("max-files", 5000, "max manifest files to fetch from remote repos")
 	scanCmd.Flags().Bool("verbose", false, "verbose output")
 	rootCmd.AddCommand(scanCmd)
 }
@@ -66,9 +67,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	if resolve.IsRemoteURL(target) {
 		// Remote URL path
+		maxFiles, _ := cmd.Flags().GetInt("max-files")
 		resolver := resolve.DetectResolver(target, resolve.DetectOptions{
 			GitHubToken: os.Getenv("GITHUB_TOKEN"),
 			GitLabToken: os.Getenv("GITLAB_TOKEN"),
+			MaxFiles:    maxFiles,
 		})
 		files, cleanup, err := resolver.Resolve(cmd.Context(), target)
 		defer cleanup()

@@ -8,10 +8,20 @@ import (
 	"path/filepath"
 )
 
-type GitCloneResolver struct{}
+type GitCloneResolver struct {
+	maxFiles int
+}
 
-func NewGitCloneResolver() *GitCloneResolver {
-	return &GitCloneResolver{}
+func NewGitCloneResolver(opts ...Option) *GitCloneResolver {
+	o := &resolverOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	mf := o.maxFiles
+	if mf <= 0 {
+		mf = DefaultMaxFiles
+	}
+	return &GitCloneResolver{maxFiles: mf}
 }
 
 func (r *GitCloneResolver) Type() string { return "gitclone" }
