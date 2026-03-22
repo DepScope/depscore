@@ -3,3 +3,9 @@ bin/
 dist/
 # Ignore compiled binary, not the source directory
 /bin/depscope
+# Lambda build artifacts
+depscope/bootstrap
+depscope/lambda.zip
+# go build output binaries
+depscope/depscope
+depscope/lambda
