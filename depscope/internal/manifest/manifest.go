@@ -123,9 +123,16 @@ func BuildDepsMap(pkgs []Package) map[string][]string {
 	}
 
 	if hasParentInfo {
+		seen := make(map[string]map[string]bool) // parent → set of children
 		for _, p := range pkgs {
 			for _, parent := range p.Parents {
-				deps[parent] = append(deps[parent], p.Name)
+				if seen[parent] == nil {
+					seen[parent] = make(map[string]bool)
+				}
+				if !seen[parent][p.Name] {
+					seen[parent][p.Name] = true
+					deps[parent] = append(deps[parent], p.Name)
+				}
 			}
 		}
 		return deps
