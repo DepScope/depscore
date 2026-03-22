@@ -56,7 +56,7 @@ depscope binary
 | `POST` | `/scan` | `handleSubmitScan` | Creates scan job, redirects to `/scan/{id}` |
 | `GET` | `/scan/{id}` | `handleScanPage` | Results page (or scanning animation if in progress) |
 | `GET` | `/api/scan/{id}` | `handleScanStatus` | JSON: `{status, result?}` for polling |
-| `GET` | `/api/package/{eco}/{name}/{version}` | `handlePackageDetail` | JSON: single package score breakdown for side panel |
+| `GET` | `/api/package/{eco}/{name...}/{version}` | `handlePackageDetail` | JSON: single package score breakdown for side panel. Uses Go 1.22+ wildcard `{name...}` to handle scoped npm packages like `@angular/core`. |
 | `GET` | `/static/*` | `http.FileServer` | Embedded CSS/JS assets |
 
 ---
@@ -110,6 +110,7 @@ The exact same pipeline as the CLI `scan` command, just writing the result to th
 - depscope logo (text-based, styled with CSS)
 - Large URL input field with "Scan" button
 - Subtle tagline: "Supply chain reputation scoring for your dependencies"
+- Profile selector (dropdown, default: `enterprise`)
 - Below: recent public scans (if any) as clickable cards
 
 ### Scanning Page
@@ -185,6 +186,7 @@ type ScanStore interface {
 - Partition key: `id` (string)
 - Attributes: `url`, `profile`, `status`, `error`, `result` (JSON), `created_at`, `ttl`
 - TTL attribute: `ttl` — set to 7 days after creation for auto-expiry
+- Result JSON is gzip-compressed before storing (DynamoDB max item size is 400KB; a 1000-package scan can exceed this uncompressed)
 - On-demand billing (pay per request, scales to zero)
 - Free tier: 25GB storage, 25 WCU, 25 RCU
 
@@ -232,6 +234,12 @@ func main() {
   - `DYNAMODB_TABLE=depscope-scans`
   - `GITHUB_TOKEN` (optional, for authenticated GitHub API)
 
+### Security & Rate Limiting
+
+- **URL validation:** only accept `https://` URLs pointing to known public hosts (github.com, gitlab.com, bitbucket.org, etc.). Reject private IP ranges (10.x, 172.16-31.x, 192.168.x), localhost, and non-HTTPS URLs to prevent SSRF.
+- **Lambda reserved concurrency:** set to 10 to cap costs and prevent abuse.
+- **Rate limiting:** simple in-memory rate limiter for Docker mode (10 scans/IP/minute). Lambda relies on reserved concurrency as its natural rate limit.
+
 ### Infrastructure (CloudFormation)
 
 A single `infrastructure/template.yaml` CloudFormation template creating:
@@ -247,7 +255,7 @@ A single `infrastructure/template.yaml` CloudFormation template creating:
 ### Dockerfile
 
 ```dockerfile
-FROM golang:1.22-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY . .
 RUN CGO_ENABLED=0 go build -o /depscope ./cmd/depscope
@@ -293,17 +301,32 @@ Flags:
 
 ## Concurrency Model
 
-### Lambda
+The server has two execution modes with different concurrency strategies:
 
-Each Lambda invocation handles one HTTP request. Scan goroutines run within the same invocation. Lambda may be frozen between invocations — the scan must complete before the response returns.
+### Lambda (synchronous)
 
-For the web flow: `POST /scan` starts the scan synchronously and stores the result before redirecting. The scan runs within the Lambda timeout (60s). This is simpler than async — no separate worker needed.
+Lambda freezes the execution environment after a response is returned — goroutines launched from a handler will not complete. Therefore, **`POST /scan` runs the scan synchronously** within the same request:
 
-If the scan takes >60s (very large repos), the Lambda times out and the status stays "running". The client sees a timeout error. Future improvement: use Step Functions or SQS for truly async scans.
+1. `POST /scan` stores `status: "running"` in DynamoDB
+2. Runs the full scan pipeline inline (blocks the response)
+3. Stores the result in DynamoDB
+4. Redirects to `/scan/{id}` which renders the complete results page immediately
 
-### Docker/Local
+The scanning animation / polling JS is **not used** in Lambda mode. The user sees the browser's loading indicator during the scan (up to 60s). If the scan completes, they land on the results page. If Lambda times out (>60s), the client gets a 504 and the DynamoDB entry stays in "running" state (cleaned up by TTL).
 
-Standard Go HTTP server with `goroutine-per-scan`. The scan runs in a goroutine, the handler returns immediately with the redirect. The polling endpoint checks the in-memory store for completion.
+Future improvement: use SQS + a second Lambda for truly async scans on very large repos.
+
+### Docker/Local (async with goroutines)
+
+Standard Go HTTP server with goroutine-per-scan:
+
+1. `POST /scan` stores `status: "queued"`, launches the scan in a goroutine, redirects immediately to `/scan/{id}`
+2. `/scan/{id}` renders the scanning animation page
+3. JS polls `GET /api/scan/{id}` every 2 seconds
+4. When the goroutine completes, it updates the store to `status: "complete"`
+5. Next poll triggers a page reload showing the full results
+
+The `handleSubmitScan` handler checks `server.Mode` (lambda vs local) to decide which path to take.
 
 ---
 
