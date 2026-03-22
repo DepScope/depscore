@@ -242,8 +242,13 @@ type uvLockFile struct {
 }
 
 type uvPackage struct {
-	Name    string `toml:"name"`
-	Version string `toml:"version"`
+	Name         string      `toml:"name"`
+	Version      string      `toml:"version"`
+	Dependencies []uvDepRef  `toml:"dependencies"`
+}
+
+type uvDepRef struct {
+	Name string `toml:"name"`
 }
 
 func parseUVLockBytes(data []byte) ([]Package, error) {
@@ -252,15 +257,38 @@ func parseUVLockBytes(data []byte) ([]Package, error) {
 		return nil, err
 	}
 
+	// Build children map: parent → [child names]
+	children := make(map[string][]string)
+	for _, pkg := range lock.Package {
+		name := strings.ToLower(pkg.Name)
+		for _, dep := range pkg.Dependencies {
+			children[name] = append(children[name], strings.ToLower(dep.Name))
+		}
+	}
+
+	// Build parents map: child → [parent names]
+	parents := make(map[string][]string)
+	for parent, deps := range children {
+		for _, child := range deps {
+			parents[child] = append(parents[child], parent)
+		}
+	}
+
 	var pkgs []Package
 	for _, pkg := range lock.Package {
+		name := strings.ToLower(pkg.Name)
+		depth := 1
+		if len(parents[name]) > 0 {
+			depth = 2
+		}
 		pkgs = append(pkgs, Package{
-			Name:            strings.ToLower(pkg.Name),
+			Name:            name,
 			ResolvedVersion: pkg.Version,
 			Constraint:      pkg.Version,
 			ConstraintType:  ConstraintExact,
 			Ecosystem:       EcosystemPython,
-			Depth:           1,
+			Depth:           depth,
+			Parents:         parents[name],
 		})
 	}
 	return pkgs, nil
