@@ -107,6 +107,9 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 		// Lookup CVEs via OSV
 		if pkg.ResolvedVersion != "" {
 			findings, err := osvClient.Query(pkg.Ecosystem.String(), pkg.Name, pkg.ResolvedVersion)
+			if err != nil {
+				log.Printf("OSV query failed for %s@%s: %v", pkg.Name, pkg.ResolvedVersion, err)
+			}
 			if err == nil && len(findings) > 0 {
 				for _, f := range findings {
 					result.Vulnerabilities = append(result.Vulnerabilities, core.Vulnerability{
