@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
-	"path/filepath"
 
 	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/core"
@@ -12,6 +10,7 @@ import (
 	"github.com/depscope/depscope/internal/registry"
 	"github.com/depscope/depscope/internal/report"
 	"github.com/depscope/depscope/internal/resolve"
+	"github.com/depscope/depscope/internal/scanner"
 	"github.com/spf13/cobra"
 )
 
@@ -63,113 +62,36 @@ func runScan(cmd *cobra.Command, args []string) error {
 		cfg.Depth = d
 	}
 
-	var pkgs []manifest.Package
+	maxFiles, _ := cmd.Flags().GetInt("max-files")
 
+	opts := scanner.Options{
+		Profile:  cfg.Profile,
+		MaxFiles: maxFiles,
+	}
+
+	var scanResult *core.ScanResult
 	if resolve.IsRemoteURL(target) {
-		// Remote URL path
-		maxFiles, _ := cmd.Flags().GetInt("max-files")
-		resolver := resolve.DetectResolver(target, resolve.DetectOptions{
-			GitHubToken: os.Getenv("GITHUB_TOKEN"),
-			GitLabToken: os.Getenv("GITLAB_TOKEN"),
-			MaxFiles:    maxFiles,
-		})
-		files, cleanup, err := resolver.Resolve(cmd.Context(), target)
-		defer cleanup()
-		if err != nil {
-			return fmt.Errorf("resolve remote: %w", err)
-		}
-
-		// Group files by directory and parse each group
-		groups := groupByDirectory(files)
-		for dir, group := range groups {
-			filenames := make([]string, 0, len(group))
-			fileMap := make(map[string][]byte)
-			for _, f := range group {
-				name := filepath.Base(f.Path)
-				filenames = append(filenames, name)
-				fileMap[name] = f.Content
-			}
-			eco, err := manifest.DetectEcosystemFromFiles(filenames)
-			if err != nil {
-				log.Printf("warning: skipping %s: %v", dir, err)
-				continue
-			}
-			parsed, err := manifest.ParserFor(eco).ParseFiles(fileMap)
-			if err != nil {
-				return fmt.Errorf("parse %s: %w", dir, err)
-			}
-			pkgs = append(pkgs, parsed...)
-		}
+		scanResult, err = scanner.ScanURL(cmd.Context(), target, opts)
 	} else {
-		// Local path
-		eco, err := manifest.DetectEcosystem(target)
-		if err != nil {
-			return fmt.Errorf("detect ecosystem: %w", err)
-		}
-		pkgs, err = manifest.ParserFor(eco).Parse(target)
-		if err != nil {
-			return fmt.Errorf("parse manifest: %w", err)
-		}
+		scanResult, err = scanner.ScanDir(target, opts)
 	}
-
-	// Determine ecosystem for fetchers. When scanning multiple groups we may
-	// have packages from different ecosystems; for now we build fetchers for
-	// all supported ecosystems.
-	fetchers := buildAllFetchers()
-
-	// Fetch registry data for all packages.
-	fetchResults := registry.FetchAll(pkgs, fetchers, int64(cfg.Concurrency))
-
-	// Score each package.
-	scored := make([]core.PackageResult, 0, len(pkgs))
-	for _, pkg := range pkgs {
-		fr := fetchResults[pkg.Key()]
-		result := core.Score(pkg, fr, cfg.Weights)
-		scored = append(scored, result)
-	}
-
-	// Propagate transitive risk.
-	depsMap := manifest.BuildDepsMap(pkgs)
-	scored = core.Propagate(scored, depsMap)
-
-	// Count direct vs transitive.
-	directCount, transitiveCount := 0, 0
-	for _, pkg := range pkgs {
-		if pkg.Depth <= 1 {
-			directCount++
-		} else {
-			transitiveCount++
-		}
-	}
-
-	// Collect all issues.
-	var allIssues []core.Issue
-	for _, r := range scored {
-		allIssues = append(allIssues, r.Issues...)
-	}
-
-	scanResult := core.ScanResult{
-		Profile:        cfg.Profile,
-		PassThreshold:  cfg.PassThreshold,
-		DirectDeps:     directCount,
-		TransitiveDeps: transitiveCount,
-		Packages:       scored,
-		AllIssues:      allIssues,
+	if err != nil {
+		return err
 	}
 
 	// Write output.
 	outputFmt, _ := cmd.Flags().GetString("output")
 	switch outputFmt {
 	case "json":
-		if err := report.WriteJSON(os.Stdout, scanResult); err != nil {
+		if err := report.WriteJSON(os.Stdout, *scanResult); err != nil {
 			return fmt.Errorf("write json: %w", err)
 		}
 	case "sarif":
-		if err := report.WriteSARIF(os.Stdout, scanResult); err != nil {
+		if err := report.WriteSARIF(os.Stdout, *scanResult); err != nil {
 			return fmt.Errorf("write sarif: %w", err)
 		}
 	default:
-		if err := report.WriteText(os.Stdout, scanResult); err != nil {
+		if err := report.WriteText(os.Stdout, *scanResult); err != nil {
 			return fmt.Errorf("write text: %w", err)
 		}
 	}
@@ -216,14 +138,4 @@ func buildAllFetchers() registry.FetchersByEcosystem {
 		"crates.io": registry.NewCratesClient(),
 		"Go":        registry.NewGoProxyClient(),
 	}
-}
-
-// groupByDirectory groups ManifestFiles by their parent directory.
-func groupByDirectory(files []resolve.ManifestFile) map[string][]resolve.ManifestFile {
-	groups := make(map[string][]resolve.ManifestFile)
-	for _, f := range files {
-		dir := filepath.Dir(f.Path)
-		groups[dir] = append(groups[dir], f)
-	}
-	return groups
 }
