@@ -4,7 +4,6 @@ import (
 	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
-	"github.com/depscope/depscope/internal/vcs"
 )
 
 // clamp constrains val to [lo, hi].
@@ -108,14 +107,19 @@ func Score(pkg manifest.Package, fetchResult *registry.FetchResult, weights conf
 	maintScore, maintIssues := FactorMaintainerCount(info)
 	dlScore, dlIssues := FactorDownloadVelocity(info)
 
-	// VCS factors require repo info; use zero-value if unavailable.
-	var repo vcs.RepoInfo
-	// We don't fetch VCS info here; callers can pass pre-fetched data via
-	// fetchResult.Info fields or future extension. For now, use an empty RepoInfo
-	// so VCS factors score neutrally (no archived flag, no commit date = low scores).
-	issueScore, issueIssues := FactorOpenIssueRatio(&repo)
-	orgScore, orgIssues := FactorOrgBacking(&repo, info)
-	healthScore, healthIssues := FactorRepoHealth(&repo)
+	// VCS factors: skip if no repo info is available (scores neutral, no misleading issues).
+	var issueScore, orgScore, healthScore int
+	var issueIssues, orgIssues, healthIssues []Issue
+	hasVCS := false
+
+	issueScore = 50 // neutral default
+	orgScore = 50
+	healthScore = 50
+
+	if hasVCS {
+		// Future: when VCS data is passed via FetchResult, score these factors.
+		// For now, they get neutral scores and generate no issues.
+	}
 
 	// Build weighted factor list.
 	factors := []weightedScore{

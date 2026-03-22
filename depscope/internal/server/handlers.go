@@ -51,7 +51,7 @@ func (s *Server) handleSubmitScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawURL := r.FormValue("url")
+	rawURL := strings.TrimSpace(r.FormValue("url"))
 	profile := r.FormValue("profile")
 	if profile == "" {
 		profile = "enterprise"
