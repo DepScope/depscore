@@ -16,17 +16,24 @@ func NewRustParser() *RustParser { return &RustParser{} }
 
 func (p *RustParser) Ecosystem() Ecosystem { return EcosystemRust }
 
-// Parse implements the Parser interface. It reads Cargo.toml for constraints
-// and Cargo.lock for resolved versions and dependency relationships.
-func (p *RustParser) Parse(dir string) ([]Package, error) {
-	constraints, rootName, err := parseCargoToml(filepath.Join(dir, "Cargo.toml"))
+// ParseFiles implements the Parser interface for in-memory file content.
+func (p *RustParser) ParseFiles(files map[string][]byte) ([]Package, error) {
+	tomlData, ok := files["Cargo.toml"]
+	if !ok {
+		return nil, fmt.Errorf("Cargo.toml not found in files")
+	}
+	constraints, rootName, err := parseCargoTomlBytes(tomlData)
 	if err != nil {
 		return nil, fmt.Errorf("parsing Cargo.toml: %w", err)
 	}
 
-	resolved, parents, err := parseCargoLock(filepath.Join(dir, "Cargo.lock"), rootName)
-	if err != nil {
-		return nil, fmt.Errorf("parsing Cargo.lock: %w", err)
+	resolved := make(map[string]string)
+	parents := make(map[string][]string)
+	if lockData, ok := files["Cargo.lock"]; ok {
+		resolved, parents, err = parseCargoLockBytes(lockData, rootName)
+		if err != nil {
+			return nil, fmt.Errorf("parsing Cargo.lock: %w", err)
+		}
 	}
 
 	var pkgs []Package
@@ -47,6 +54,24 @@ func (p *RustParser) Parse(dir string) ([]Package, error) {
 		})
 	}
 	return pkgs, nil
+}
+
+// Parse implements the Parser interface. It reads Cargo.toml for constraints
+// and Cargo.lock for resolved versions and dependency relationships.
+func (p *RustParser) Parse(dir string) ([]Package, error) {
+	files := make(map[string][]byte)
+	tomlData, err := os.ReadFile(filepath.Join(dir, "Cargo.toml"))
+	if err != nil {
+		return nil, fmt.Errorf("parsing Cargo.toml: %w", err)
+	}
+	files["Cargo.toml"] = tomlData
+
+	lockData, err := os.ReadFile(filepath.Join(dir, "Cargo.lock"))
+	if err == nil {
+		files["Cargo.lock"] = lockData
+	}
+
+	return p.ParseFiles(files)
 }
 
 // cargoConstraintType maps a Cargo version requirement string to a ConstraintType.
@@ -72,14 +97,9 @@ func cargoConstraintType(constraint string) ConstraintType {
 	}
 }
 
-// parseCargoToml reads [dependencies] from a Cargo.toml, returning a map of
+// parseCargoTomlBytes reads [dependencies] from Cargo.toml bytes, returning a map of
 // package name → version requirement string, plus the root package name.
-func parseCargoToml(path string) (constraints map[string]string, rootName string, err error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, "", err
-	}
-
+func parseCargoTomlBytes(data []byte) (constraints map[string]string, rootName string, err error) {
 	// Use a raw map to handle mixed string/table dependency values
 	var raw map[string]any
 	if err := toml.Unmarshal(data, &raw); err != nil {
@@ -121,19 +141,14 @@ type lockPackage struct {
 	Dependencies []string `toml:"dependencies"`
 }
 
-// parseCargoLock reads Cargo.lock and returns:
+// parseCargoLockBytes reads Cargo.lock bytes and returns:
 //   - resolved: map of package name → resolved version
 //   - parents:  map of package name → list of packages that depend on it
 //
 // The root package (rootName) is excluded from parents as a dependency target
 // so it doesn't pollute child parent lists, but its declared deps are still
 // used to build the parent map.
-func parseCargoLock(path string, rootName string) (resolved map[string]string, parents map[string][]string, err error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, nil, err
-	}
-
+func parseCargoLockBytes(data []byte, rootName string) (resolved map[string]string, parents map[string][]string, err error) {
 	var lock struct {
 		Package []lockPackage `toml:"package"`
 	}
@@ -157,3 +172,4 @@ func parseCargoLock(path string, rootName string) (resolved map[string]string, p
 	}
 	return resolved, parents, nil
 }
+

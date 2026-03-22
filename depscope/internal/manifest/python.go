@@ -2,6 +2,8 @@ package manifest
 
 import (
 	"bufio"
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +18,21 @@ func NewPythonParser() *PythonParser { return &PythonParser{} }
 
 func (p *PythonParser) Ecosystem() Ecosystem { return EcosystemPython }
 
+// ParseFiles implements the Parser interface for in-memory file content.
+// It dispatches based on which keys are present, preferring uv.lock > poetry.lock > requirements.txt.
+func (p *PythonParser) ParseFiles(files map[string][]byte) ([]Package, error) {
+	if data, ok := files["uv.lock"]; ok {
+		return parseUVLockBytes(data)
+	}
+	if data, ok := files["poetry.lock"]; ok {
+		return parsePoetryLockBytes(data)
+	}
+	if data, ok := files["requirements.txt"]; ok {
+		return parseRequirementsTxtBytes(data)
+	}
+	return nil, fmt.Errorf("no recognized Python manifest file found in provided files")
+}
+
 // Parse implements the Parser interface. It selects the best available manifest in dir.
 func (p *PythonParser) Parse(dir string) ([]Package, error) {
 	for _, name := range []string{"uv.lock", "poetry.lock", "requirements.txt"} {
@@ -29,14 +46,18 @@ func (p *PythonParser) Parse(dir string) ([]Package, error) {
 
 // ParseFile parses a single Python manifest file, dispatching on its base name.
 func (p *PythonParser) ParseFile(path string) ([]Package, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
 	base := filepath.Base(path)
 	switch base {
 	case "requirements.txt":
-		return parseRequirementsTxt(path)
+		return parseRequirementsTxtBytes(data)
 	case "poetry.lock":
-		return parsePoetryLock(path)
+		return parsePoetryLockBytes(data)
 	case "uv.lock":
-		return parseUVLock(path)
+		return parseUVLockBytes(data)
 	default:
 		return nil, nil
 	}
@@ -44,15 +65,9 @@ func (p *PythonParser) ParseFile(path string) ([]Package, error) {
 
 // --- requirements.txt parser ---
 
-func parseRequirementsTxt(path string) ([]Package, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
+func parseRequirementsTxtBytes(data []byte) ([]Package, error) {
 	var pkgs []Package
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -102,12 +117,7 @@ func splitRequirement(line string) (name, constraint string) {
 
 // --- poetry.lock parser ---
 
-func parsePoetryLock(path string) ([]Package, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
+func parsePoetryLockBytes(data []byte) ([]Package, error) {
 	// Build a map of package name -> dependency names (children).
 	// poetry.lock [package.dependencies] keys are the child package names.
 	type rawPkg struct {
@@ -170,12 +180,7 @@ type uvPackage struct {
 	Version string `toml:"version"`
 }
 
-func parseUVLock(path string) ([]Package, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
+func parseUVLockBytes(data []byte) ([]Package, error) {
 	var lock uvLockFile
 	if err := toml.Unmarshal(data, &lock); err != nil {
 		return nil, err

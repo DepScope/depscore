@@ -74,3 +74,21 @@ func TestBuildDepsMapFallback(t *testing.T) {
 	deps := manifest.BuildDepsMap(pkgs)
 	assert.Contains(t, deps["direct1"], "indirect1")
 }
+
+func TestDetectEcosystemFromFiles(t *testing.T) {
+	tests := []struct {
+		filenames []string
+		expected  manifest.Ecosystem
+	}{
+		{[]string{"go.mod", "go.sum"}, manifest.EcosystemGo},
+		{[]string{"Cargo.toml", "Cargo.lock"}, manifest.EcosystemRust},
+		{[]string{"package.json", "package-lock.json"}, manifest.EcosystemNPM},
+		{[]string{"requirements.txt"}, manifest.EcosystemPython},
+		{[]string{"pyproject.toml", "poetry.lock"}, manifest.EcosystemPython},
+	}
+	for _, tt := range tests {
+		eco, err := manifest.DetectEcosystemFromFiles(tt.filenames)
+		require.NoError(t, err, "%v", tt.filenames)
+		assert.Equal(t, tt.expected, eco, "%v", tt.filenames)
+	}
+}

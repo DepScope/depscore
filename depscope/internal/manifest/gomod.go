@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -13,10 +14,10 @@ func NewGoModParser() *GoModParser { return &GoModParser{} }
 
 func (p *GoModParser) Ecosystem() Ecosystem { return EcosystemGo }
 
-func (p *GoModParser) Parse(dir string) ([]Package, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-	if err != nil {
-		return nil, err
+func (p *GoModParser) ParseFiles(files map[string][]byte) ([]Package, error) {
+	data, ok := files["go.mod"]
+	if !ok {
+		return nil, fmt.Errorf("go.mod not found in files")
 	}
 	f, err := modfile.Parse("go.mod", data, nil)
 	if err != nil {
@@ -38,4 +39,18 @@ func (p *GoModParser) Parse(dir string) ([]Package, error) {
 		})
 	}
 	return pkgs, nil
+}
+
+func (p *GoModParser) Parse(dir string) ([]Package, error) {
+	files := make(map[string][]byte)
+	for _, name := range []string{"go.mod", "go.sum"} {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil && name == "go.mod" {
+			return nil, err
+		}
+		if err == nil {
+			files[name] = data
+		}
+	}
+	return p.ParseFiles(files)
 }

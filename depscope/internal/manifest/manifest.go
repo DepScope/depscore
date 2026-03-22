@@ -41,6 +41,7 @@ func (p Package) Key() string {
 
 type Parser interface {
 	Parse(dir string) ([]Package, error)
+	ParseFiles(files map[string][]byte) ([]Package, error)
 	Ecosystem() Ecosystem
 }
 
@@ -53,6 +54,7 @@ var ecosystemFiles = []struct {
 	{"package.json", EcosystemNPM},
 	{"uv.lock", EcosystemPython},
 	{"poetry.lock", EcosystemPython},
+	{"pyproject.toml", EcosystemPython},
 	{"requirements.txt", EcosystemPython},
 }
 
@@ -63,6 +65,19 @@ func DetectEcosystem(dir string) (Ecosystem, error) {
 		}
 	}
 	return "", fmt.Errorf("no recognized manifest found in %s", dir)
+}
+
+func DetectEcosystemFromFiles(filenames []string) (Ecosystem, error) {
+	nameSet := make(map[string]bool)
+	for _, f := range filenames {
+		nameSet[filepath.Base(f)] = true
+	}
+	for _, ef := range ecosystemFiles {
+		if nameSet[ef.file] {
+			return ef.ecosystem, nil
+		}
+	}
+	return "", fmt.Errorf("no recognized manifest in files: %v", filenames)
 }
 
 func ParserFor(eco Ecosystem) Parser {

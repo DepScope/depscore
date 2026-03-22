@@ -15,17 +15,23 @@ func NewJavaScriptParser() *JavaScriptParser { return &JavaScriptParser{} }
 
 func (p *JavaScriptParser) Ecosystem() Ecosystem { return EcosystemNPM }
 
-// Parse implements the Parser interface. It reads package.json for constraints
-// and package-lock.json (lockfileVersion 3) for resolved versions.
-func (p *JavaScriptParser) Parse(dir string) ([]Package, error) {
-	constraints, err := parsePackageJSON(filepath.Join(dir, "package.json"))
+// ParseFiles implements the Parser interface for in-memory file content.
+func (p *JavaScriptParser) ParseFiles(files map[string][]byte) ([]Package, error) {
+	pkgData, ok := files["package.json"]
+	if !ok {
+		return nil, fmt.Errorf("package.json not found in files")
+	}
+	constraints, err := parsePackageJSONBytes(pkgData)
 	if err != nil {
 		return nil, fmt.Errorf("parsing package.json: %w", err)
 	}
 
-	resolved, err := parsePackageLockJSON(filepath.Join(dir, "package-lock.json"))
-	if err != nil {
-		return nil, fmt.Errorf("parsing package-lock.json: %w", err)
+	resolved := make(map[string]string)
+	if lockData, ok := files["package-lock.json"]; ok {
+		resolved, err = parsePackageLockJSONBytes(lockData)
+		if err != nil {
+			return nil, fmt.Errorf("parsing package-lock.json: %w", err)
+		}
 	}
 
 	var pkgs []Package
@@ -40,6 +46,24 @@ func (p *JavaScriptParser) Parse(dir string) ([]Package, error) {
 		})
 	}
 	return pkgs, nil
+}
+
+// Parse implements the Parser interface. It reads package.json for constraints
+// and package-lock.json (lockfileVersion 3) for resolved versions.
+func (p *JavaScriptParser) Parse(dir string) ([]Package, error) {
+	files := make(map[string][]byte)
+	pkgData, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return nil, fmt.Errorf("parsing package.json: %w", err)
+	}
+	files["package.json"] = pkgData
+
+	lockData, err := os.ReadFile(filepath.Join(dir, "package-lock.json"))
+	if err == nil {
+		files["package-lock.json"] = lockData
+	}
+
+	return p.ParseFiles(files)
 }
 
 // npmConstraintType maps an npm version string to a ConstraintType.
@@ -63,13 +87,8 @@ func npmConstraintType(constraint string) ConstraintType {
 	}
 }
 
-// parsePackageJSON reads the dependencies map from package.json.
-func parsePackageJSON(path string) (map[string]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
+// parsePackageJSONBytes reads the dependencies map from package.json bytes.
+func parsePackageJSONBytes(data []byte) (map[string]string, error) {
 	var pkg struct {
 		Dependencies map[string]string `json:"dependencies"`
 	}
@@ -88,18 +107,9 @@ type packageLockEntry struct {
 	Version string `json:"version"`
 }
 
-// parsePackageLockJSON reads resolved versions from a lockfileVersion 3
-// package-lock.json. Keys in "packages" are "node_modules/{name}".
-func parsePackageLockJSON(path string) (map[string]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		// Lock file is optional — return empty map if missing
-		if os.IsNotExist(err) {
-			return make(map[string]string), nil
-		}
-		return nil, err
-	}
-
+// parsePackageLockJSONBytes reads resolved versions from a lockfileVersion 3
+// package-lock.json bytes. Keys in "packages" are "node_modules/{name}".
+func parsePackageLockJSONBytes(data []byte) (map[string]string, error) {
 	var lock struct {
 		Packages map[string]packageLockEntry `json:"packages"`
 	}
@@ -117,3 +127,4 @@ func parsePackageLockJSON(path string) (map[string]string, error) {
 	}
 	return resolved, nil
 }
+
