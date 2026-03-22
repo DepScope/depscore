@@ -100,8 +100,9 @@
           data-risk="{{.OwnRisk}}"
           data-transitive-risk="{{.TransitiveRisk}}"
           data-constraint="{{.ConstraintType}}"
-          data-depth="0">
-        <td class="pkg-name"><span class="pkg-expand" title="Show dependencies">&#9654;</span> {{.Name}}</td>
+          data-depth="0"
+          data-deps-count="{{len .DependsOn}}">
+        <td class="pkg-name">{{if .DependsOn}}<span class="pkg-expand" title="Show dependencies ({{len .DependsOn}})">&#9654;</span>{{else}}<span class="pkg-expand-none"></span>{{end}} {{.Name}}</td>
         <td class="pkg-version">{{.Version}}</td>
         <td class="pkg-score">{{.OwnScore}}</td>
         <td><span class="badge risk-{{lower .OwnRisk}}">{{.OwnRisk}}</span></td>

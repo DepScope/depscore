@@ -72,14 +72,18 @@
     var overlay = panel.querySelector('.panel-overlay');
     var closeBtn = panel.querySelector('.panel-close');
 
-    // Open panel on row click (but NOT when clicking the expand ▶ button)
-    var rows = document.querySelectorAll('tr.pkg-row');
-    rows.forEach(function (row) {
-      row.addEventListener('click', function (e) {
+    // Open panel on row click (delegated so it works for dynamically added dep-rows too)
+    // Skip clicks on the expand ▶ button.
+    var tbody = panel ? document.querySelector('#pkg-table tbody') : null;
+    if (tbody) {
+      tbody.addEventListener('click', function (e) {
         if (e.target.closest('.pkg-expand')) return; // handled by tree expand
-        openPanel(row.dataset);
+        var row = e.target.closest('tr.pkg-row');
+        if (row && !row.classList.contains('dep-empty')) {
+          openPanel(row.dataset);
+        }
       });
-    });
+    }
 
     // Close on overlay click or close button
     if (overlay)  overlay.addEventListener('click', closePanel);
@@ -421,7 +425,7 @@
     var riskLower = String(risk).toLowerCase();
 
     tr.innerHTML =
-      '<td class="pkg-name">' + indent + '<span class="pkg-expand" title="Show dependencies">&#9654;</span> ' + escapeHtml(name) + '</td>' +
+      '<td class="pkg-name">' + indent + '<span class="pkg-expand pkg-expand-sub" title="Show dependencies">&#9654;</span> ' + escapeHtml(name) + '</td>' +
       '<td class="pkg-version">' + escapeHtml(version) + '</td>' +
       '<td class="pkg-score">' + escapeHtml(String(score)) + '</td>' +
       '<td><span class="badge risk-' + riskLower + '">' + escapeHtml(String(risk)) + '</span></td>' +

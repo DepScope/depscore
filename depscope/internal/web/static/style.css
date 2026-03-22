@@ -733,6 +733,7 @@ details[open] .issue-summary-title::before { transform: rotate(90deg); }
   user-select: none;
 }
 .pkg-expand:hover { color: var(--accent); }
+.pkg-expand-none { display: inline-block; width: 16px; }
 .expanded > td .pkg-expand { color: var(--accent); }
 
 .dep-row {
