@@ -1,0 +1,31 @@
+{{define "content"}}
+<div class="scanning-page">
+  <div class="scanning-logo pulse">depscope</div>
+  <p class="scanning-text">Scanning <span class="scanning-url">{{.URL}}</span><span class="scanning-dots"></span></p>
+  <p class="scanning-sub">Fetching manifests, scoring packages, propagating risk&hellip;</p>
+</div>
+
+<script>
+(function() {
+  var id = {{.ID}};
+  var dots = document.querySelector('.scanning-dots');
+  var dotCount = 0;
+  setInterval(function() {
+    dotCount = (dotCount + 1) % 4;
+    dots.textContent = '.'.repeat(dotCount);
+  }, 500);
+
+  setInterval(async function() {
+    try {
+      var resp = await fetch('/api/scan/' + id);
+      var data = await resp.json();
+      if (data.status === 'complete' || data.status === 'failed') {
+        window.location.reload();
+      }
+    } catch (e) {
+      // network error, keep trying
+    }
+  }, 2000);
+})();
+</script>
+{{end}}
