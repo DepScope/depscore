@@ -143,10 +143,13 @@ func Score(pkg manifest.Package, fetchResult *registry.FetchResult, weights conf
 	}
 	ownScore := clamp(weighted/100, 0, 100)
 
-	// Collect all issues.
+	// Collect all issues and stamp with the package name.
 	var allIssues []Issue
 	for _, batch := range [][]Issue{recIssues, maintIssues, dlIssues, issueIssues, orgIssues, pinIssues, healthIssues} {
-		allIssues = append(allIssues, batch...)
+		for _, iss := range batch {
+			iss.Package = pkg.Name
+			allIssues = append(allIssues, iss)
+		}
 	}
 
 	result.OwnScore = ownScore
