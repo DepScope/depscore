@@ -108,13 +108,58 @@
     // Fetch full detail from API
     var eco = encodeURIComponent(data.eco || '');
     var name = data.name || '';
-    var version = encodeURIComponent(data.version || '');
-    var url = '/api/package/' + eco + '/' + name + '/' + version;
+    var version = data.version || '';
+    var url = '/api/package/' + eco + '/' + name;
+    if (version) url += '/' + encodeURIComponent(version);
 
     fetch(url)
       .then(function (resp) { return resp.json(); })
       .then(function (pkg) { renderPanel(pkg); })
       .catch(function () { renderPanelFallback(data); });
+  }
+
+  function registryURL(eco, name, version) {
+    switch (eco.toLowerCase()) {
+      case 'python': return 'https://pypi.org/project/' + name + (version ? '/' + version : '') + '/';
+      case 'npm':    return 'https://www.npmjs.com/package/' + name + (version ? '/v/' + version : '');
+      case 'crates.io': case 'rust': return 'https://crates.io/crates/' + name + (version ? '/' + version : '');
+      case 'go':     return 'https://pkg.go.dev/' + name + (version ? '@' + version : '');
+      default:       return null;
+    }
+  }
+
+  // Checks that passed (no issues found for these)
+  var allChecks = [
+    'release_recency',
+    'maintainer_count',
+    'download_velocity',
+    'version_pinning',
+    'org_backing',
+    'open_issue_ratio',
+    'repo_health'
+  ];
+
+  var checkLabels = {
+    'release_recency':   'Release recency',
+    'maintainer_count':  'Maintainer count',
+    'download_velocity': 'Download velocity',
+    'version_pinning':   'Version pinning',
+    'org_backing':       'Organization backing',
+    'open_issue_ratio':  'Open issue ratio',
+    'repo_health':       'Repository health'
+  };
+
+  // Map issue messages to their check category
+  function issueToCheck(msg) {
+    msg = msg.toLowerCase();
+    if (msg.indexOf('release') >= 0 || msg.indexOf('stale') >= 0) return 'release_recency';
+    if (msg.indexOf('maintainer') >= 0 || msg.indexOf('bus-factor') >= 0) return 'maintainer_count';
+    if (msg.indexOf('download') >= 0) return 'download_velocity';
+    if (msg.indexOf('constraint') >= 0 || msg.indexOf('version') >= 0 || msg.indexOf('pinning') >= 0) return 'version_pinning';
+    if (msg.indexOf('org') >= 0 || msg.indexOf('backing') >= 0 || msg.indexOf('individual') >= 0) return 'org_backing';
+    if (msg.indexOf('issue ratio') >= 0) return 'open_issue_ratio';
+    if (msg.indexOf('commit') >= 0 || msg.indexOf('archived') >= 0 || msg.indexOf('repo') >= 0) return 'repo_health';
+    return null;
   }
 
   function renderPanel(pkg) {
@@ -127,8 +172,20 @@
 
     var meta = document.createElement('p');
     meta.className = 'panel-meta';
-    meta.textContent = pkg.ecosystem + ' · ' + (pkg.version || 'unknown version');
+    meta.textContent = pkg.ecosystem + (pkg.version ? ' · ' + pkg.version : '');
     panelBody.appendChild(meta);
+
+    // Registry link
+    var regURL = registryURL(pkg.ecosystem, pkg.name, pkg.version);
+    if (regURL) {
+      var link = document.createElement('a');
+      link.href = regURL;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.className = 'panel-registry-link';
+      link.textContent = 'View on ' + registryName(pkg.ecosystem) + ' \u2197';
+      panelBody.appendChild(link);
+    }
 
     // Score section
     var scoreSection = document.createElement('div');
@@ -145,7 +202,7 @@
     scoreRow.appendChild(scoreBadge);
     scoreSection.appendChild(scoreRow);
 
-    if (pkg.transitiveRisk && pkg.transitiveRisk !== pkg.risk) {
+    if (pkg.transitiveScore !== pkg.score) {
       var transRow = document.createElement('div');
       transRow.className = 'panel-score-row';
       var transLabel = document.createElement('span');
@@ -164,8 +221,6 @@
     var infoRows = [
       ['Constraint', pkg.constraintType],
       ['Depth', pkg.depth === 1 ? 'Direct dependency' : 'Transitive (depth ' + pkg.depth + ')'],
-      ['Depends on', pkg.dependsOn + ' packages'],
-      ['Depended on by', pkg.dependedOn + ' packages'],
     ];
     var infoSection = document.createElement('div');
     infoSection.className = 'panel-section';
@@ -184,15 +239,60 @@
     });
     panelBody.appendChild(infoSection);
 
-    // Issues
-    if (pkg.issues && pkg.issues.length > 0) {
-      var issueHeader = document.createElement('h3');
-      issueHeader.textContent = 'Issues (' + pkg.issues.length + ')';
-      panelBody.appendChild(issueHeader);
+    // Checks: show passed and failed
+    var failedChecks = {};
+    if (pkg.issues) {
+      pkg.issues.forEach(function (iss) {
+        var check = issueToCheck(iss.Message);
+        if (check) failedChecks[check] = iss;
+      });
+    }
+
+    var checksHeader = document.createElement('h3');
+    checksHeader.textContent = 'Security Checks';
+    panelBody.appendChild(checksHeader);
+
+    var checksList = document.createElement('ul');
+    checksList.className = 'panel-checks-list';
+    allChecks.forEach(function (check) {
+      var li = document.createElement('li');
+      li.className = 'panel-check';
+      var icon = document.createElement('span');
+      var label = document.createElement('span');
+      label.className = 'panel-check-label';
+      label.textContent = checkLabels[check];
+
+      if (failedChecks[check]) {
+        icon.className = 'check-icon check-fail';
+        icon.textContent = '\u2717 ';
+        var detail = document.createElement('span');
+        detail.className = 'panel-check-detail';
+        detail.textContent = ' — ' + failedChecks[check].Message;
+        li.appendChild(icon);
+        li.appendChild(label);
+        li.appendChild(detail);
+      } else {
+        icon.className = 'check-icon check-pass';
+        icon.textContent = '\u2713 ';
+        li.appendChild(icon);
+        li.appendChild(label);
+      }
+      checksList.appendChild(li);
+    });
+    panelBody.appendChild(checksList);
+
+    // Remaining issues not mapped to checks
+    var unmappedIssues = (pkg.issues || []).filter(function (iss) {
+      return !issueToCheck(iss.Message);
+    });
+    if (unmappedIssues.length > 0) {
+      var otherHeader = document.createElement('h3');
+      otherHeader.textContent = 'Other Issues';
+      panelBody.appendChild(otherHeader);
 
       var issueList = document.createElement('ul');
       issueList.className = 'panel-issue-list';
-      pkg.issues.forEach(function (iss) {
+      unmappedIssues.forEach(function (iss) {
         var li = document.createElement('li');
         li.className = 'panel-issue';
         var sev = document.createElement('span');
@@ -205,11 +305,16 @@
         issueList.appendChild(li);
       });
       panelBody.appendChild(issueList);
-    } else {
-      var noIssues = document.createElement('p');
-      noIssues.className = 'panel-no-issues';
-      noIssues.textContent = 'No issues found';
-      panelBody.appendChild(noIssues);
+    }
+  }
+
+  function registryName(eco) {
+    switch (eco.toLowerCase()) {
+      case 'python': return 'PyPI';
+      case 'npm': return 'npm';
+      case 'crates.io': case 'rust': return 'crates.io';
+      case 'go': return 'pkg.go.dev';
+      default: return 'registry';
     }
   }
 

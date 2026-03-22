@@ -683,6 +683,45 @@ details[open] .issue-summary-title::before { transform: rotate(90deg); }
   padding: 40px 0;
 }
 
+#panel-body .panel-registry-link {
+  display: inline-block;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 13px;
+  margin-bottom: 16px;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+#panel-body .panel-registry-link:hover {
+  background: rgba(88, 166, 255, 0.1);
+}
+
+#panel-body .panel-checks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#panel-body .panel-check {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+#panel-body .panel-check:last-child { border-bottom: none; }
+
+.check-icon { font-weight: bold; }
+.check-pass { color: var(--risk-low); }
+.check-fail { color: var(--risk-critical); }
+
+.panel-check-label { font-weight: 500; }
+.panel-check-detail {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 /* =========================================================
    Responsive
    ========================================================= */

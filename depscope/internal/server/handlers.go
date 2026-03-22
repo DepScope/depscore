@@ -181,21 +181,22 @@ func (s *Server) handlePackageDetail(w http.ResponseWriter, r *http.Request) {
 	rest := r.PathValue("rest")
 
 	// Split name and version: everything before the last "/" is the name,
-	// the last segment is the version.
+	// the last segment is the version. If no slash, treat entire rest as name (no version).
+	var name, version string
 	lastSlash := strings.LastIndex(rest, "/")
 	if lastSlash < 0 {
-		http.Error(w, "invalid package path: expected <name>/<version>", http.StatusBadRequest)
-		return
-	}
-	name := rest[:lastSlash]
-	version := rest[lastSlash+1:]
-
-	if name == "" || version == "" {
-		http.Error(w, "invalid package path: name and version must not be empty", http.StatusBadRequest)
-		return
+		name = rest
+	} else {
+		name = rest[:lastSlash]
+		version = rest[lastSlash+1:]
 	}
 
-	// Search all jobs for a matching package.
+	if name == "" {
+		http.Error(w, "invalid package path: name must not be empty", http.StatusBadRequest)
+		return
+	}
+
+	// Search all jobs for a matching package (version may be empty).
 	var found *core.PackageResult
 outer:
 	for _, job := range s.store.List() {
@@ -204,11 +205,11 @@ outer:
 		}
 		for i := range job.Result.Packages {
 			pkg := &job.Result.Packages[i]
-			if strings.EqualFold(pkg.Ecosystem, eco) &&
-				pkg.Name == name &&
-				pkg.Version == version {
-				found = pkg
-				break outer
+			if strings.EqualFold(pkg.Ecosystem, eco) && pkg.Name == name {
+				if version == "" || pkg.Version == version {
+					found = pkg
+					break outer
+				}
 			}
 		}
 	}
