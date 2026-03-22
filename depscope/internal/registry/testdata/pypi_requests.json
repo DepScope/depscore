@@ -1,0 +1,13 @@
+{
+  "info": {
+    "name": "requests",
+    "author": "Kenneth Reitz",
+    "home_page": "https://github.com/psf/requests",
+    "classifiers": ["Development Status :: 5 - Production/Stable"],
+    "project_urls": {"Source": "https://github.com/psf/requests"}
+  },
+  "releases": {
+    "2.31.0": [{"upload_time": "2023-05-22T15:12:34"}],
+    "2.30.0": [{"upload_time": "2023-04-01T10:00:00"}]
+  }
+}
