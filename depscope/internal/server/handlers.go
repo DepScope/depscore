@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
+	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/scanner"
 	"github.com/depscope/depscope/internal/server/store"
 )
@@ -152,6 +154,94 @@ func (s *Server) runScan(ctx context.Context, id, rawURL, profile string) {
 	}
 
 	_ = s.store.SaveResult(id, result)
+}
+
+// packageDetailResponse is the JSON body for GET /api/package/{eco}/{rest...}.
+type packageDetailResponse struct {
+	Name           string       `json:"name"`
+	Version        string       `json:"version"`
+	Ecosystem      string       `json:"ecosystem"`
+	Score          int          `json:"score"`
+	Risk           core.RiskLevel `json:"risk"`
+	TransitiveRisk core.RiskLevel `json:"transitiveRisk"`
+	TransitiveScore int          `json:"transitiveScore"`
+	ConstraintType string       `json:"constraintType"`
+	Depth          int          `json:"depth"`
+	Issues         []core.Issue `json:"issues"`
+	DependsOn      int          `json:"dependsOn"`
+	DependedOn     int          `json:"dependedOn"`
+}
+
+// handlePackageDetail handles GET /api/package/{eco}/{rest...}.
+// The URL path after the ecosystem is treated as <name...>/<version>, where
+// the last segment is the version and the preceding segments form the package
+// name (supporting scoped npm packages like @angular/core).
+func (s *Server) handlePackageDetail(w http.ResponseWriter, r *http.Request) {
+	eco := r.PathValue("eco")
+	rest := r.PathValue("rest")
+
+	// Split name and version: everything before the last "/" is the name,
+	// the last segment is the version.
+	lastSlash := strings.LastIndex(rest, "/")
+	if lastSlash < 0 {
+		http.Error(w, "invalid package path: expected <name>/<version>", http.StatusBadRequest)
+		return
+	}
+	name := rest[:lastSlash]
+	version := rest[lastSlash+1:]
+
+	if name == "" || version == "" {
+		http.Error(w, "invalid package path: name and version must not be empty", http.StatusBadRequest)
+		return
+	}
+
+	// Search all jobs for a matching package.
+	var found *core.PackageResult
+outer:
+	for _, job := range s.store.List() {
+		if job.Result == nil {
+			continue
+		}
+		for i := range job.Result.Packages {
+			pkg := &job.Result.Packages[i]
+			if strings.EqualFold(pkg.Ecosystem, eco) &&
+				pkg.Name == name &&
+				pkg.Version == version {
+				found = pkg
+				break outer
+			}
+		}
+	}
+
+	if found == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "package not found"})
+		return
+	}
+
+	issues := found.Issues
+	if issues == nil {
+		issues = []core.Issue{}
+	}
+
+	resp := packageDetailResponse{
+		Name:            found.Name,
+		Version:         found.Version,
+		Ecosystem:       found.Ecosystem,
+		Score:           found.OwnScore,
+		Risk:            found.OwnRisk,
+		TransitiveRisk:  found.TransitiveRisk,
+		TransitiveScore: found.TransitiveRiskScore,
+		ConstraintType:  found.ConstraintType,
+		Depth:           found.Depth,
+		Issues:          issues,
+		DependsOn:       found.DependsOnCount,
+		DependedOn:      found.DependedOnCount,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // generateID returns a 16-character lowercase hex string from 8 random bytes.

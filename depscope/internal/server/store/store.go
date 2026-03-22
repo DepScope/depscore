@@ -30,4 +30,6 @@ type ScanStore interface {
 	SaveResult(id string, result *core.ScanResult) error
 	SaveError(id string, errMsg string) error
 	Get(id string) (*ScanJob, error)
+	// List returns all stored scan jobs in no guaranteed order.
+	List() []*ScanJob
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/server"
 	"github.com/depscope/depscope/internal/server/store"
 )
@@ -252,6 +253,137 @@ func TestScanPageFailed(t *testing.T) {
 	if !strings.Contains(body, "Scan Failed") {
 		t.Error("results page does not contain 'Scan Failed'")
 	}
+}
+
+func TestPackageDetail(t *testing.T) {
+	st := store.NewMemoryStore()
+	const jobID = "cccc000011112222"
+	if err := st.Create(jobID, store.ScanRequest{URL: "https://github.com/test/repo", Profile: "enterprise"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	result := &core.ScanResult{
+		Profile:       "enterprise",
+		PassThreshold: 70,
+		DirectDeps:    1,
+		Packages: []core.PackageResult{
+			{
+				Name:                "requests",
+				Version:             "2.31.0",
+				Ecosystem:           "python",
+				OwnScore:            82,
+				OwnRisk:             core.RiskLow,
+				TransitiveRisk:      core.RiskLow,
+				TransitiveRiskScore: 82,
+				ConstraintType:      "exact",
+				Depth:               1,
+				DependsOnCount:      3,
+				DependedOnCount:     0,
+			},
+		},
+	}
+	if err := st.SaveResult(jobID, result); err != nil {
+		t.Fatalf("SaveResult: %v", err)
+	}
+
+	srv, err := server.NewServer(server.Options{Store: st, Mode: server.ModeLocal})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	t.Run("found", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/api/package/python/requests/2.31.0")
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected 200, got %d", resp.StatusCode)
+		}
+
+		ct := resp.Header.Get("Content-Type")
+		if !strings.Contains(ct, "application/json") {
+			t.Errorf("expected JSON Content-Type, got %q", ct)
+		}
+
+		var payload map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode JSON: %v", err)
+		}
+
+		if got := payload["name"]; got != "requests" {
+			t.Errorf("name: got %v, want %q", got, "requests")
+		}
+		if got := payload["version"]; got != "2.31.0" {
+			t.Errorf("version: got %v, want %q", got, "2.31.0")
+		}
+		if got := payload["ecosystem"]; got != "python" {
+			t.Errorf("ecosystem: got %v, want %q", got, "python")
+		}
+		if got, _ := payload["score"].(float64); int(got) != 82 {
+			t.Errorf("score: got %v, want 82", got)
+		}
+		if got := payload["risk"]; got != "LOW" {
+			t.Errorf("risk: got %v, want %q", got, "LOW")
+		}
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/api/package/python/unknown/1.0.0")
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("scoped_npm_package", func(t *testing.T) {
+		// Scoped npm packages have a leading @ in the name, e.g. @angular/core
+		const npmJobID = "dddd000011112222"
+		if err := st.Create(npmJobID, store.ScanRequest{URL: "https://github.com/test/npm-repo", Profile: "enterprise"}); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		npmResult := &core.ScanResult{
+			Profile:    "enterprise",
+			DirectDeps: 1,
+			Packages: []core.PackageResult{
+				{
+					Name:      "@angular/core",
+					Version:   "17.0.0",
+					Ecosystem: "npm",
+					OwnScore:  75,
+					OwnRisk:   core.RiskMedium,
+				},
+			},
+		}
+		if err := st.SaveResult(npmJobID, npmResult); err != nil {
+			t.Fatalf("SaveResult: %v", err)
+		}
+
+		resp, err := http.Get(ts.URL + "/api/package/npm/@angular/core/17.0.0")
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected 200, got %d", resp.StatusCode)
+		}
+
+		var payload map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode JSON: %v", err)
+		}
+		if got := payload["name"]; got != "@angular/core" {
+			t.Errorf("name: got %v, want %q", got, "@angular/core")
+		}
+	})
 }
 
 func TestStaticAssets(t *testing.T) {

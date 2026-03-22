@@ -61,6 +61,9 @@ func NewServer(opts Options) (*Server, error) {
 	s.mux.HandleFunc("POST /scan", s.handleSubmitScan)
 	s.mux.HandleFunc("GET /scan/{id}", s.handleScanPage)
 	s.mux.HandleFunc("GET /api/scan/{id}", s.handleScanStatus)
+	// Route for package detail: /api/package/{eco}/{name...}
+	// The handler splits the last path segment as the version.
+	s.mux.HandleFunc("GET /api/package/{eco}/{rest...}", s.handlePackageDetail)
 	// Serve static files from the embedded FS (strip the /static/ prefix so
 	// http.FileServerFS sees paths relative to the root of the FS).
 	s.mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticSubFS())))

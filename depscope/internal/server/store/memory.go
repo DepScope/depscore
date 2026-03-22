@@ -71,6 +71,16 @@ func (s *MemoryStore) Get(id string) (*ScanJob, error) {
 	return s.load(id)
 }
 
+// List returns all stored ScanJobs in no guaranteed order.
+func (s *MemoryStore) List() []*ScanJob {
+	var jobs []*ScanJob
+	s.m.Range(func(_, v interface{}) bool {
+		jobs = append(jobs, v.(*ScanJob))
+		return true
+	})
+	return jobs
+}
+
 func (s *MemoryStore) load(id string) (*ScanJob, error) {
 	v, ok := s.m.Load(id)
 	if !ok {
