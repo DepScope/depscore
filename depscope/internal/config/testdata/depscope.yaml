@@ -1,0 +1,9 @@
+profile: enterprise
+pass_threshold: 75
+depth: 10
+registries:
+  github_token: ${GITHUB_TOKEN}
+vuln_sources:
+  osv: true
+  nvd: true
+  nvd_api_key: ${NVD_KEY}
