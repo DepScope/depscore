@@ -12,6 +12,7 @@ import (
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
 	"github.com/depscope/depscope/internal/resolve"
+	"github.com/depscope/depscope/internal/vuln"
 )
 
 // Options controls scan behaviour.
@@ -95,10 +96,33 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 
 	fetchResults := registry.FetchAll(pkgs, fetchers, int64(cfg.Concurrency))
 
+	// Query OSV for vulnerabilities
+	osvClient := vuln.NewOSVClient()
+
 	scored := make([]core.PackageResult, 0, len(pkgs))
 	for _, pkg := range pkgs {
 		fr := fetchResults[pkg.Key()]
 		result := core.Score(pkg, fr, cfg.Weights)
+
+		// Lookup CVEs via OSV
+		if pkg.ResolvedVersion != "" {
+			findings, err := osvClient.Query(pkg.Ecosystem.String(), pkg.Name, pkg.ResolvedVersion)
+			if err == nil && len(findings) > 0 {
+				for _, f := range findings {
+					result.Vulnerabilities = append(result.Vulnerabilities, core.Vulnerability{
+						ID:       f.ID,
+						Summary:  f.Summary,
+						Severity: string(f.Severity),
+					})
+					result.Issues = append(result.Issues, core.Issue{
+						Package:  pkg.Name,
+						Severity: core.IssueSeverity(f.Severity),
+						Message:  "CVE: " + f.ID + " — " + f.Summary,
+					})
+				}
+			}
+		}
+
 		scored = append(scored, result)
 	}
 

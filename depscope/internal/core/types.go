@@ -49,9 +49,16 @@ type PackageResult struct {
 	OwnRisk             RiskLevel
 	TransitiveRisk      RiskLevel
 	Issues              []Issue
+	Vulnerabilities     []Vulnerability
 	DependsOn           []string
 	DependsOnCount      int
 	DependedOnCount     int
+}
+
+type Vulnerability struct {
+	ID       string `json:"id"`
+	Summary  string `json:"summary"`
+	Severity string `json:"severity"`
 }
 
 func (r PackageResult) FinalScore() int {

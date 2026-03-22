@@ -158,19 +158,20 @@ func (s *Server) runScan(ctx context.Context, id, rawURL, profile string) {
 
 // packageDetailResponse is the JSON body for GET /api/package/{eco}/{rest...}.
 type packageDetailResponse struct {
-	Name            string         `json:"name"`
-	Version         string         `json:"version"`
-	Ecosystem       string         `json:"ecosystem"`
-	Score           int            `json:"score"`
-	Risk            core.RiskLevel `json:"risk"`
-	TransitiveRisk  core.RiskLevel `json:"transitiveRisk"`
-	TransitiveScore int            `json:"transitiveScore"`
-	ConstraintType  string         `json:"constraintType"`
-	Depth           int            `json:"depth"`
-	Issues          []core.Issue   `json:"issues"`
-	DependsOn       []string       `json:"dependsOn"`
-	DependsOnCount  int            `json:"dependsOnCount"`
-	DependedOnCount int            `json:"dependedOnCount"`
+	Name            string               `json:"name"`
+	Version         string               `json:"version"`
+	Ecosystem       string               `json:"ecosystem"`
+	Score           int                  `json:"score"`
+	Risk            core.RiskLevel       `json:"risk"`
+	TransitiveRisk  core.RiskLevel       `json:"transitiveRisk"`
+	TransitiveScore int                  `json:"transitiveScore"`
+	ConstraintType  string               `json:"constraintType"`
+	Depth           int                  `json:"depth"`
+	Issues          []core.Issue         `json:"issues"`
+	Vulnerabilities []core.Vulnerability `json:"vulnerabilities"`
+	DependsOn       []string             `json:"dependsOn"`
+	DependsOnCount  int                  `json:"dependsOnCount"`
+	DependedOnCount int                  `json:"dependedOnCount"`
 }
 
 // handlePackageDetail handles GET /api/package/{eco}/{rest...}.
@@ -231,6 +232,10 @@ outer:
 	if deps == nil {
 		deps = []string{}
 	}
+	vulns := found.Vulnerabilities
+	if vulns == nil {
+		vulns = []core.Vulnerability{}
+	}
 
 	resp := packageDetailResponse{
 		Name:            found.Name,
@@ -243,6 +248,7 @@ outer:
 		ConstraintType:  found.ConstraintType,
 		Depth:           found.Depth,
 		Issues:          issues,
+		Vulnerabilities: vulns,
 		DependsOn:       deps,
 		DependsOnCount:  found.DependsOnCount,
 		DependedOnCount: found.DependedOnCount,

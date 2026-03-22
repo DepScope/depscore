@@ -292,6 +292,39 @@
     });
     panelBody.appendChild(checksList);
 
+    // Vulnerabilities (CVEs)
+    if (pkg.vulnerabilities && pkg.vulnerabilities.length > 0) {
+      var vulnHeader = document.createElement('h3');
+      vulnHeader.textContent = 'Vulnerabilities (' + pkg.vulnerabilities.length + ')';
+      panelBody.appendChild(vulnHeader);
+
+      var vulnList = document.createElement('ul');
+      vulnList.className = 'panel-vuln-list';
+      pkg.vulnerabilities.forEach(function (v) {
+        var li = document.createElement('li');
+        li.className = 'panel-vuln';
+        var id = document.createElement('a');
+        id.className = 'vuln-id';
+        id.textContent = v.id;
+        id.href = 'https://osv.dev/vulnerability/' + encodeURIComponent(v.id);
+        id.target = '_blank';
+        id.rel = 'noopener';
+        var sev = document.createElement('span');
+        sev.className = 'badge sev-' + (v.severity || 'medium').toLowerCase();
+        sev.textContent = v.severity || 'UNKNOWN';
+        var summary = document.createElement('span');
+        summary.className = 'vuln-summary';
+        summary.textContent = v.summary;
+        li.appendChild(sev);
+        li.appendChild(document.createTextNode(' '));
+        li.appendChild(id);
+        li.appendChild(document.createElement('br'));
+        li.appendChild(summary);
+        vulnList.appendChild(li);
+      });
+      panelBody.appendChild(vulnList);
+    }
+
     // Remaining issues not mapped to checks
     var unmappedIssues = (pkg.issues || []).filter(function (iss) {
       return !issueToCheck(iss.Message);

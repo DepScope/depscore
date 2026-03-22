@@ -723,6 +723,29 @@ details[open] .issue-summary-title::before { transform: rotate(90deg); }
   font-size: 12px;
 }
 
+.panel-vuln-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.panel-vuln {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.panel-vuln:last-child { border-bottom: none; }
+.vuln-id {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+.vuln-id:hover { text-decoration: underline; }
+.vuln-summary {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 .pkg-expand {
   cursor: pointer;
   display: inline-block;
