@@ -30,6 +30,9 @@ func (p *PythonParser) ParseFiles(files map[string][]byte) ([]Package, error) {
 	if data, ok := files["requirements.txt"]; ok {
 		return parseRequirementsTxtBytes(data)
 	}
+	if data, ok := files["pyproject.toml"]; ok {
+		return parsePyprojectTomlBytes(data)
+	}
 	return nil, fmt.Errorf("no recognized Python manifest file found in provided files")
 }
 
@@ -113,6 +116,69 @@ func splitRequirement(line string) (name, constraint string) {
 	}
 	// No operator — bare package name
 	return strings.TrimSpace(line), ""
+}
+
+// --- pyproject.toml parser ---
+
+func parsePyprojectTomlBytes(data []byte) ([]Package, error) {
+	var proj struct {
+		Project struct {
+			Dependencies []string `toml:"dependencies"`
+		} `toml:"project"`
+		Tool struct {
+			Poetry struct {
+				Dependencies map[string]any `toml:"dependencies"`
+			} `toml:"poetry"`
+		} `toml:"tool"`
+	}
+	if err := toml.Unmarshal(data, &proj); err != nil {
+		return nil, err
+	}
+
+	var pkgs []Package
+
+	// PEP 621: [project.dependencies] — list of requirement strings like "requests>=2.0"
+	for _, req := range proj.Project.Dependencies {
+		name, constraint := splitRequirement(req)
+		if name == "" {
+			continue
+		}
+		ct := ParseConstraintType(constraint)
+		resolved := ""
+		if ct == ConstraintExact {
+			resolved = strings.TrimLeft(constraint, "=")
+		}
+		pkgs = append(pkgs, Package{
+			Name: strings.ToLower(name), Constraint: constraint,
+			ConstraintType: ct, ResolvedVersion: resolved,
+			Ecosystem: EcosystemPython, Depth: 1,
+		})
+	}
+
+	// Poetry: [tool.poetry.dependencies] — map of name → version string or table
+	if len(pkgs) == 0 {
+		for name, val := range proj.Tool.Poetry.Dependencies {
+			if strings.ToLower(name) == "python" {
+				continue
+			}
+			constraint := ""
+			switch v := val.(type) {
+			case string:
+				constraint = v
+			case map[string]any:
+				if ver, ok := v["version"].(string); ok {
+					constraint = ver
+				}
+			}
+			ct := ParseConstraintType(constraint)
+			pkgs = append(pkgs, Package{
+				Name: strings.ToLower(name), Constraint: constraint,
+				ConstraintType: ct, Ecosystem: EcosystemPython, Depth: 1,
+			})
+		}
+	}
+
+	return pkgs, nil
 }
 
 // --- poetry.lock parser ---
