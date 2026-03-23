@@ -194,6 +194,19 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 		allIssues = append(allIssues, r.Issues...)
 	}
 
+	// Trace risk paths through the dependency graph
+	riskPaths := core.FindRiskPaths(scored, depsMap, cfg.PassThreshold, 10)
+
+	// Build registry info map for suspicious package detection
+	regInfos := make(map[string]*registry.PackageInfo)
+	for _, pkg := range pkgs {
+		fr := fetchResults[pkg.Key()]
+		if fr != nil && fr.Info != nil {
+			regInfos[pkg.Name] = fr.Info
+		}
+	}
+	suspicious := core.DetectSuspicious(scored, regInfos)
+
 	result := &core.ScanResult{
 		Profile:        cfg.Profile,
 		PassThreshold:  cfg.PassThreshold,
@@ -202,6 +215,8 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 		Packages:       scored,
 		AllIssues:      allIssues,
 		DepsMap:        depsMap,
+		RiskPaths:      riskPaths,
+		Suspicious:     suspicious,
 	}
 	return result, nil
 }

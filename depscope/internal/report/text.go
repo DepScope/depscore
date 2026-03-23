@@ -33,11 +33,40 @@ func WriteText(w io.Writer, result core.ScanResult) error {
 		return fmt.Errorf("report: rendering table: %w", err)
 	}
 
-	// Print issues below the table.
+	// Risk paths: show worst dependency chains
+	if len(result.RiskPaths) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Risk Paths (worst dependency chains):")
+		for i, rp := range result.RiskPaths {
+			chain := ""
+			for j, name := range rp.Chain {
+				if j > 0 {
+					chain += " → "
+				}
+				chain += name
+			}
+			fmt.Fprintf(w, "  %d. %s [score: %d, %s]\n", i+1, chain, rp.EndScore, rp.EndRisk)
+			fmt.Fprintf(w, "     %s\n", rp.Reason)
+		}
+	}
+
+	// Suspicious indicators: supply chain anomalies
+	if len(result.Suspicious) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Supply Chain Warnings:")
+		for _, s := range result.Suspicious {
+			fmt.Fprintf(w, "  [%s] %s: %s\n", s.Severity, s.Package, s.Message)
+		}
+	}
+
+	// Print issues below
 	if len(result.AllIssues) > 0 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Issues:")
 		for _, issue := range result.AllIssues {
+			if issue.Severity == core.SeverityInfo {
+				continue // skip INFO in CLI output to reduce noise
+			}
 			fmt.Fprintf(w, "  [%s] %s: %s\n", issue.Severity, issue.Package, issue.Message)
 		}
 	}

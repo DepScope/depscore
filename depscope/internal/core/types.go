@@ -80,7 +80,9 @@ type ScanResult struct {
 	MaxDepthReached bool
 	Packages        []PackageResult
 	AllIssues       []Issue
-	DepsMap         map[string][]string // package name → direct dependency names
+	DepsMap         map[string][]string  // package name → direct dependency names
+	RiskPaths       []RiskPath           // worst dependency chains
+	Suspicious      []SuspiciousIndicator // supply chain anomalies
 }
 
 func (s ScanResult) Passed() bool {
