@@ -89,10 +89,11 @@ func ScanDir(dir string, opts Options) (*core.ScanResult, error) {
 // transitive risk. It is shared by ScanURL and ScanDir.
 func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult, error) {
 	fetchers := registry.FetchersByEcosystem{
-		"PyPI":      registry.NewPyPIClient(),
-		"npm":       registry.NewNPMClient(),
-		"crates.io": registry.NewCratesClient(),
-		"Go":        registry.NewGoProxyClient(),
+		"PyPI":       registry.NewPyPIClient(),
+		"npm":        registry.NewNPMClient(),
+		"crates.io":  registry.NewCratesClient(),
+		"Go":         registry.NewGoProxyClient(),
+		"Packagist":  registry.NewPackagistClient(),
 	}
 
 	fetchResults := registry.FetchAll(pkgs, fetchers, int64(cfg.Concurrency))

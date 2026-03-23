@@ -20,6 +20,7 @@ var ManifestFilenames = []string{
 	"requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock",
 	"Cargo.toml", "Cargo.lock",
 	"package.json", "package-lock.json", "pnpm-lock.yaml", "bun.lock",
+	"composer.json", "composer.lock",
 }
 
 func IsIgnoredDir(path string) bool {
