@@ -14,6 +14,7 @@ const (
 	EcosystemGo     Ecosystem = "go"
 	EcosystemRust   Ecosystem = "rust"
 	EcosystemNPM    Ecosystem = "npm"
+	EcosystemPHP    Ecosystem = "php"
 )
 
 type ConstraintType string
@@ -52,6 +53,7 @@ var ecosystemFiles = []struct {
 	{"go.mod", EcosystemGo},
 	{"Cargo.toml", EcosystemRust},
 	{"package.json", EcosystemNPM},
+	{"composer.json", EcosystemPHP},
 	{"uv.lock", EcosystemPython},
 	{"poetry.lock", EcosystemPython},
 	{"pyproject.toml", EcosystemPython},
@@ -90,6 +92,8 @@ func ParserFor(eco Ecosystem) Parser {
 		return NewRustParser()
 	case EcosystemNPM:
 		return NewJavaScriptParser()
+	case EcosystemPHP:
+		return NewPHPParser()
 	default:
 		panic("unknown ecosystem: " + string(eco))
 	}
@@ -106,6 +110,8 @@ func (e Ecosystem) String() string {
 		return "crates.io"
 	case EcosystemNPM:
 		return "npm"
+	case EcosystemPHP:
+		return "Packagist"
 	default:
 		return string(e)
 	}
