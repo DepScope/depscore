@@ -17,11 +17,14 @@ type jsonPackage struct {
 	Name                string      `json:"name"`
 	Version             string      `json:"version"`
 	Ecosystem           string      `json:"ecosystem"`
+	Constraint          string      `json:"constraint,omitempty"`
 	ConstraintType      string      `json:"constraint_type"`
 	Depth               int         `json:"depth"`
 	OwnScore            int         `json:"own_score"`
+	VulnScore           int         `json:"vuln_score"`
 	TransitiveRiskScore int         `json:"transitive_risk_score"`
 	OwnRisk             string      `json:"own_risk"`
+	VulnRisk            string      `json:"vuln_risk"`
 	TransitiveRisk      string      `json:"transitive_risk"`
 	FinalScore          int         `json:"final_score"`
 	VulnCount           int         `json:"vuln_count"`
@@ -58,11 +61,14 @@ func WriteJSON(w io.Writer, result core.ScanResult) error {
 			Name:                p.Name,
 			Version:             p.Version,
 			Ecosystem:           p.Ecosystem,
+			Constraint:          p.Constraint,
 			ConstraintType:      p.ConstraintType,
 			Depth:               p.Depth,
 			OwnScore:            p.OwnScore,
+			VulnScore:           p.VulnScore,
 			TransitiveRiskScore: p.TransitiveRiskScore,
 			OwnRisk:             string(p.OwnRisk),
+			VulnRisk:            string(p.VulnRisk),
 			TransitiveRisk:      string(p.TransitiveRisk),
 			FinalScore:          p.FinalScore(),
 			VulnCount:           p.VulnCount,

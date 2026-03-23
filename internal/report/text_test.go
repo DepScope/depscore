@@ -25,6 +25,12 @@ func TestTextReportContainsPackageNames(t *testing.T) {
 	assert.Contains(t, out, "requests")
 	assert.Contains(t, out, "urllib3")
 	assert.Contains(t, out, "Score:")
+	// requests has ==2.31.0 constraint which matches resolved → just show version
+	assert.Contains(t, out, "requests 2.31.0")
+	// urllib3 has >=1.26 constraint which differs from 2.0.7 → show constraint → resolved
+	assert.Contains(t, out, "urllib3 >=1.26 \u2192 2.0.7")
+	// Should NOT contain the old (minor) format
+	assert.NotContains(t, out, "(minor)")
 }
 
 func TestTextReportTreeConnectors(t *testing.T) {
@@ -43,6 +49,7 @@ func TestTextReportTreeConnectors(t *testing.T) {
 		ConstraintType:      "exact",
 		Depth:               1,
 		OwnScore:            75,
+		VulnScore:           100,
 		TransitiveRiskScore: 75,
 		OwnRisk:             core.RiskMedium,
 		TransitiveRisk:      core.RiskMedium,
@@ -65,6 +72,7 @@ func TestTextReportShowsFailWhenBelowThreshold(t *testing.T) {
 func TestTextReportShowsPassWhenAboveThreshold(t *testing.T) {
 	result := SampleScanResultWithDeps()
 	result.Packages[1].OwnScore = 80
+	result.Packages[1].VulnScore = 100
 	result.Packages[1].TransitiveRiskScore = 80
 	result.Packages[1].OwnRisk = core.RiskLow
 	result.Packages[1].TransitiveRisk = core.RiskLow

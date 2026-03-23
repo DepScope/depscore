@@ -66,18 +66,13 @@ func Score(pkg manifest.Package, fr *FetchResult, weights config.Weights) Packag
 	}
 	ownScore := clamp(total/100, 0, 100)
 
-	// Apply CVE penalty on top of reputation score
+	// Compute vulnerability score as a separate axis (not blended into OwnScore)
+	// FinalScore = min(OwnScore, VulnScore, TransitiveRiskScore)
 	var vulns []vuln.Finding
 	if fr != nil {
 		vulns = fr.Vulns
 	}
 	vulnScore, vulnIssues := FactorVulnerabilities(vulns)
-
-	// Blend: final = (reputation * 0.7) + (vuln_score * 0.3) if vulns exist
-	// If no vulns, just use reputation score
-	if len(vulns) > 0 {
-		ownScore = (ownScore*70 + vulnScore*30) / 100
-	}
 
 	var allIssues []Issue
 	for _, fs := range factors {
@@ -95,11 +90,14 @@ func Score(pkg manifest.Package, fr *FetchResult, weights config.Weights) Packag
 		Name:                pkg.Name,
 		Version:             pkg.ResolvedVersion,
 		Ecosystem:           string(pkg.Ecosystem),
+		Constraint:          pkg.Constraint,
 		ConstraintType:      string(pkg.ConstraintType),
 		Depth:               pkg.Depth,
 		OwnScore:            ownScore,
-		OwnRisk:             RiskLevelFromScore(ownScore),
+		VulnScore:           vulnScore,
 		TransitiveRiskScore: 100,
+		OwnRisk:             RiskLevelFromScore(ownScore),
+		VulnRisk:            RiskLevelFromScore(vulnScore),
 		TransitiveRisk:      RiskLow,
 		Issues:              allIssues,
 		VulnCount:           len(vulns),
