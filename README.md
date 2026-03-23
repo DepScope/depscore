@@ -194,11 +194,12 @@ Result: FAIL
 
 The web server provides an interactive dashboard at `http://localhost:8080`:
 
-- **Landing page** — enter a GitHub/GitLab URL, select a profile, scan
-- **Results page** — score gauge, sortable package table, issue summary
+![depscope results page](docs/screenshots/results.png)
+
+- **Results page** — score gauge, sortable package table, issue summary with severity filtering
 - **Side panel** — click any package for detailed reputation checks, CVEs, and registry links
-- **Dependency tree** — expand packages to see their transitive dependencies
-- **Issue filtering** — click severity badges to filter by type
+- **Dependency tree** — expand packages to see their transitive dependencies recursively
+- **Landing page** — enter a GitHub/GitLab URL, select a profile, scan
 
 ## Remote Scanning
 
