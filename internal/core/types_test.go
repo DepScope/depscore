@@ -27,15 +27,19 @@ func TestRiskLevelFromScore(t *testing.T) {
 }
 
 func TestFinalScore(t *testing.T) {
-	r := core.PackageResult{OwnScore: 75, TransitiveRiskScore: 45}
+	r := core.PackageResult{OwnScore: 75, VulnScore: 100, TransitiveRiskScore: 45}
 	assert.Equal(t, 45, r.FinalScore())
 
-	r2 := core.PackageResult{OwnScore: 45, TransitiveRiskScore: 75}
+	r2 := core.PackageResult{OwnScore: 45, VulnScore: 100, TransitiveRiskScore: 75}
 	assert.Equal(t, 45, r2.FinalScore())
+
+	// VulnScore is the minimum
+	r3 := core.PackageResult{OwnScore: 75, VulnScore: 30, TransitiveRiskScore: 80}
+	assert.Equal(t, 30, r3.FinalScore())
 }
 
 func TestFinalRisk(t *testing.T) {
-	r := core.PackageResult{OwnScore: 75, TransitiveRiskScore: 45}
+	r := core.PackageResult{OwnScore: 75, VulnScore: 100, TransitiveRiskScore: 45}
 	assert.Equal(t, core.RiskHigh, r.FinalRisk()) // 45 → High
 }
 
@@ -52,8 +56,8 @@ func TestScanResultPassed(t *testing.T) {
 	passing := core.ScanResult{
 		PassThreshold: 70,
 		Packages: []core.PackageResult{
-			{OwnScore: 80, TransitiveRiskScore: 80},
-			{OwnScore: 75, TransitiveRiskScore: 75},
+			{OwnScore: 80, VulnScore: 100, TransitiveRiskScore: 80},
+			{OwnScore: 75, VulnScore: 100, TransitiveRiskScore: 75},
 		},
 	}
 	assert.True(t, passing.Passed())
@@ -61,8 +65,8 @@ func TestScanResultPassed(t *testing.T) {
 	failing := core.ScanResult{
 		PassThreshold: 70,
 		Packages: []core.PackageResult{
-			{OwnScore: 80, TransitiveRiskScore: 80},
-			{OwnScore: 50, TransitiveRiskScore: 50},
+			{OwnScore: 80, VulnScore: 100, TransitiveRiskScore: 80},
+			{OwnScore: 50, VulnScore: 100, TransitiveRiskScore: 50},
 		},
 	}
 	assert.False(t, failing.Passed())

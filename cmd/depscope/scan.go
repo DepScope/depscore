@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -33,6 +34,8 @@ func init() {
 	scanCmd.Flags().String("config", "", "Path to depscope.yaml config file")
 	scanCmd.Flags().String("output", "text", "Output format: text|json|sarif")
 	scanCmd.Flags().Int("depth", 0, "Max dependency depth (0 = profile default)")
+	scanCmd.Flags().String("manifest", "", "Explicit manifest file to scan (e.g., poetry.lock)")
+	scanCmd.Flags().Bool("verbose", false, "Show detailed package metadata")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -74,16 +77,36 @@ func buildVulnSources(cfg config.Config) []vuln.Source {
 
 // scanDeps is the core scan logic, extracted for testability.
 // It accepts an io.Writer and optional registry.Fetcher override (for testing).
-func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, regOverride registry.Fetcher) error {
-	eco, err := manifest.DetectEcosystem(dir)
-	if err != nil {
-		return fmt.Errorf("manifest detection: %w", err)
+func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, manifestFile string, verbose bool, regOverride registry.Fetcher) error {
+	// Warn if GITHUB_TOKEN is not set
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		fmt.Fprintln(os.Stderr, "warning: GITHUB_TOKEN not set — repo health scoring disabled")
 	}
 
-	pkgs, err := manifest.ParserFor(eco).Parse(dir)
-	if err != nil {
-		return fmt.Errorf("manifest parse: %w", err)
+	var eco manifest.Ecosystem
+	var pkgs []manifest.Package
+	var err error
+
+	if manifestFile != "" {
+		// Explicit manifest file: detect parser from filename
+		eco, pkgs, err = parseManifestFile(manifestFile)
+		if err != nil {
+			return fmt.Errorf("manifest parse: %w", err)
+		}
+	} else {
+		eco, err = manifest.DetectEcosystem(dir)
+		if err != nil {
+			return fmt.Errorf("manifest detection: %w", err)
+		}
+
+		pkgs, err = manifest.ParserFor(eco).Parse(dir)
+		if err != nil {
+			return fmt.Errorf("manifest parse: %w", err)
+		}
 	}
+
+	_ = verbose // reserved for future detailed output
 
 	reg := regOverride
 	if reg == nil {
@@ -93,7 +116,6 @@ func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, regO
 		reg = registry.NewCachedFetcher(reg, diskCache, cfg.Cache.MetadataHours)
 	}
 
-	token := os.Getenv("GITHUB_TOKEN")
 	var vcsClient vcs.Client
 	if token != "" {
 		vcsClient = vcs.NewGitHubClient(token)
@@ -113,6 +135,24 @@ func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, regO
 	// Build dependency graph and compute correct depths before scoring
 	deps := manifest.BuildDepsMap(pkgs)
 	pkgs = manifest.ComputeDepths(pkgs, deps)
+
+	// Filter by MaxDepth if configured
+	maxDepthReached := false
+	if cfg.MaxDepth > 0 {
+		var filtered []manifest.Package
+		for _, pkg := range pkgs {
+			if pkg.Depth <= cfg.MaxDepth {
+				filtered = append(filtered, pkg)
+			} else {
+				maxDepthReached = true
+			}
+		}
+		pkgs = filtered
+	}
+
+	if maxDepthReached {
+		fmt.Fprintf(os.Stderr, "warning: depth limit %d reached — some transitive dependencies were excluded\n", cfg.MaxDepth)
+	}
 
 	// Count direct vs transitive
 	directCount, transitiveCount := 0, 0
@@ -137,12 +177,13 @@ func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, regO
 	results = core.Propagate(results, deps)
 
 	scanResult := core.ScanResult{
-		Profile:        cfg.Profile,
-		PassThreshold:  cfg.PassThreshold,
-		DirectDeps:     directCount,
-		TransitiveDeps: transitiveCount,
-		Packages:       results,
-		Deps:           deps,
+		Profile:         cfg.Profile,
+		PassThreshold:   cfg.PassThreshold,
+		DirectDeps:      directCount,
+		TransitiveDeps:  transitiveCount,
+		MaxDepthReached: maxDepthReached,
+		Packages:        results,
+		Deps:            deps,
 	}
 	for _, r := range results {
 		scanResult.AllIssues = append(scanResult.AllIssues, r.Issues...)
@@ -167,6 +208,32 @@ func scanDeps(w io.Writer, dir string, cfg config.Config, outputFmt string, regO
 	return nil
 }
 
+// parseManifestFile detects the ecosystem from a manifest filename and parses it.
+func parseManifestFile(path string) (manifest.Ecosystem, []manifest.Package, error) {
+	base := filepath.Base(path)
+	dir := filepath.Dir(path)
+	switch {
+	case base == "poetry.lock" || base == "uv.lock" || base == "requirements.txt":
+		p := manifest.NewPythonParser()
+		pkgs, err := p.ParseFile(path)
+		return manifest.EcosystemPython, pkgs, err
+	case base == "package-lock.json" || base == "package.json" || base == "pnpm-lock.yaml" || base == "bun.lock":
+		p := manifest.NewJavaScriptParser()
+		pkgs, err := p.Parse(dir)
+		return manifest.EcosystemNPM, pkgs, err
+	case base == "go.mod":
+		p := manifest.NewGoModParser()
+		pkgs, err := p.Parse(dir)
+		return manifest.EcosystemGo, pkgs, err
+	case base == "Cargo.toml" || base == "Cargo.lock":
+		p := manifest.NewRustParser()
+		pkgs, err := p.Parse(dir)
+		return manifest.EcosystemRust, pkgs, err
+	default:
+		return "", nil, fmt.Errorf("unrecognized manifest file: %s", base)
+	}
+}
+
 func runScan(cmd *cobra.Command, args []string) error {
 	dir := "."
 	if len(args) > 0 {
@@ -188,8 +255,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if depthFlag, _ := cmd.Flags().GetInt("depth"); depthFlag > 0 {
+		cfg.MaxDepth = depthFlag
+	}
+
 	outputFmt, _ := cmd.Flags().GetString("output")
-	return scanDeps(os.Stdout, dir, cfg, outputFmt, nil)
+	manifestFile, _ := cmd.Flags().GetString("manifest")
+	verbose, _ := cmd.Flags().GetBool("verbose")
+	return scanDeps(os.Stdout, dir, cfg, outputFmt, manifestFile, verbose, nil)
 }
 
 func isGitURL(s string) bool {

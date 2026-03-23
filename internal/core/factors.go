@@ -96,7 +96,12 @@ func FactorOrgBacking(repo *vcs.RepoInfo, info *registry.PackageInfo) (int, []Is
 	if backed {
 		return 100, nil
 	}
-	return 30, []Issue{{Severity: SeverityLow, Message: "no org/company backing — individual maintainer"}}
+	// If we have VCS data and it's not org-backed, that's a real signal
+	if repo != nil {
+		return 30, []Issue{{Severity: SeverityLow, Message: "no org/company backing — individual maintainer"}}
+	}
+	// No VCS data at all — neutral (we don't know)
+	return 50, nil
 }
 
 // FactorVersionPinning scores the constraint type.
@@ -116,7 +121,8 @@ func FactorVersionPinning(ct manifest.ConstraintType) (int, []Issue) {
 // FactorRepoHealth scores commit frequency and archived status.
 func FactorRepoHealth(repo *vcs.RepoInfo) (int, []Issue) {
 	if repo == nil {
-		return 35, []Issue{{Severity: SeverityMedium, Message: "no source repository found"}}
+		// No VCS data — neutral score (we don't know), not a penalty
+		return 50, nil
 	}
 	if repo.IsArchived {
 		return 0, []Issue{{Severity: SeverityHigh, Message: "source repository is archived — no further development"}}
