@@ -1,10 +1,37 @@
 # depscope
 
-**Supply chain reputation scoring for your dependencies.**
+**Find the person maintaining your entire infrastructure in Nebraska.**
 
-depscope scans your project's dependency tree and scores each package for supply chain reputation risk. It goes beyond CVE scanning — it evaluates maintainer health, release activity, version pinning, organizational backing, and repository health to answer one question: **can you trust this dependency and everything it pulls in?**
+[![xkcd 2347](https://imgs.xkcd.com/comics/dependency.png)](https://xkcd.com/2347/)
+
+Every modern software project sits on a tower of dependencies, and each of those depends on more, all the way down. Somewhere in that tree is a mass-adopted critical package maintained by one person in their spare time. [You know the one](https://xkcd.com/2347/). depscope finds it.
+
+**depscope is not a vulnerability scanner.** CVE databases tell you what's already broken. depscope tells you what's *about to* break — by scoring the **reputation and health** of every dependency in your tree, recursively, and tracing the risk path from your code to the weakest link.
+
+The question isn't *"does this package have a CVE?"* — it's ***"can I trust this package, and everything it pulls in, to still be maintained next year?"***
 
 ![depscope landing page](docs/screenshots/landing.png)
+
+## Why Reputation, Not Just Vulnerabilities
+
+A CVE scanner tells you `colorama` is safe today. depscope tells you:
+
+- `colorama` hasn't been released in **3.4 years**
+- It has a **single maintainer** with no org backing
+- It has **no linked source repository** on PyPI
+- It's pulled in by `click`, which is pulled in by `flask`, which is pulled in by **your app**
+- **15 of your other dependencies** also depend on it
+
+That's not a vulnerability. That's a **supply chain risk** — and it's the kind of thing that leads to incidents like `event-stream`, `ua-parser-js`, and `colors.js`.
+
+## What depscope does
+
+1. **Scans your entire dependency tree** — direct and transitive, across Go, Python, Rust, JS/TS, and PHP
+2. **Scores each package on 7 reputation factors** — not just "is it broken" but "is it healthy"
+3. **Propagates risk through the tree** — a risky transitive dep affects everything above it
+4. **Traces risk paths** — shows you exactly which chain leads to your weakest link: `your-app → express → qs → abandoned-pkg`
+5. **Detects supply chain anomalies** — new packages with suspicious download spikes, dormant projects with sudden activity, missing source repos
+6. **Also scans CVEs** — because you still want to know about known vulns (via OSV.dev)
 
 ## Features
 
@@ -80,7 +107,9 @@ docker run depscope/depscope scan https://github.com/psf/requests
 | **JavaScript/TypeScript** | `package.json` | `package-lock.json`, `pnpm-lock.yaml`, `bun.lock` | npm |
 | **PHP** | `composer.json` | `composer.lock` | Packagist |
 
-## Scoring
+## Reputation Scoring
+
+This is **not** a pass/fail vulnerability check. It's a reputation assessment — like a credit score for packages. A score of 60 doesn't mean "broken", it means "you should be paying attention."
 
 Each package is scored 0-100 based on 7 weighted factors:
 
@@ -94,14 +123,14 @@ Each package is scored 0-100 based on 7 weighted factors:
 | Organization backing | Maintained by an org vs individual | 10% |
 | Open issue ratio | Ratio of open to closed issues | 10% |
 
-### Risk Levels
+### Reputation Levels
 
-| Score | Risk | Meaning |
-|-------|------|---------|
-| 80-100 | LOW | Well-maintained, trustworthy |
-| 60-79 | MEDIUM | Some concerns, monitor |
-| 40-59 | HIGH | Significant risk, investigate |
-| 0-39 | CRITICAL | Unacceptable risk, action required |
+| Score | Level | What it means |
+|-------|-------|--------------|
+| 80-100 | LOW risk | Actively maintained, multiple maintainers, org-backed. You can trust this. |
+| 60-79 | MEDIUM risk | Healthy but with gaps — maybe one maintainer, or loose version pins. Monitor it. |
+| 40-59 | HIGH risk | Unmaintained, solo developer, or poor pinning. Investigate alternatives. |
+| 0-39 | CRITICAL risk | Abandoned, archived, or actively dangerous. The Nebraska problem lives here. |
 
 ### Profiles
 
@@ -113,29 +142,50 @@ Each package is scored 0-100 based on 7 weighted factors:
 
 ## CLI Output Example
 
-```
-depscope scan /tmp/vuln-test --profile enterprise
+### Reputation scan — finding the Nebraska problem
 
-┌──────────────┬─────────┬───────┬────────┬─────────────────┬────────────┐
-│   PACKAGE    │ VERSION │ SCORE │  RISK  │ TRANSITIVE RISK │ CONSTRAINT │
-├──────────────┼─────────┼───────┼────────┼─────────────────┼────────────┤
-│ requests     │ 2.28.0  │ 68    │ MEDIUM │ LOW             │ exact      │
-│ urllib3      │ 1.26.5  │ 77    │ MEDIUM │ LOW             │ exact      │
-│ cryptography │ 38.0.0  │ 71    │ MEDIUM │ LOW             │ exact      │
-│ werkzeug     │ 2.3.0   │ 71    │ MEDIUM │ LOW             │ exact      │
-└──────────────┴─────────┴───────┴────────┴─────────────────┴────────────┘
+```
+$ depscope scan /path/to/flask --profile enterprise
+
+┌──────────────────┬────────────┬───────┬────────┬─────────────────┬────────────┐
+│     PACKAGE      │  VERSION   │ SCORE │  RISK  │ TRANSITIVE RISK │ CONSTRAINT │
+├──────────────────┼────────────┼───────┼────────┼─────────────────┼────────────┤
+│ flask            │ 3.2.0.dev0 │ 81    │ LOW    │ HIGH            │ exact      │
+│ click            │ 8.3.1      │ 81    │ LOW    │ HIGH            │ exact      │
+│ colorama         │ 0.4.6      │ 47    │ HIGH   │ LOW             │ exact      │
+│ types-dataclasses│ 0.6.6      │ 45    │ HIGH   │ LOW             │ exact      │
+│ werkzeug         │ 3.1.6      │ 84    │ LOW    │ LOW             │ exact      │
+│ jinja2           │ 3.1.6      │ 63    │ MEDIUM │ LOW             │ exact      │
+│ ...              │            │       │        │                 │            │
+└──────────────────┴────────────┴───────┴────────┴─────────────────┴────────────┘
 
 Risk Paths (worst dependency chains):
-  1. requests [score: 68, MEDIUM]
-     CVE: GHSA-9hjg-9r4m-mvj7 — Requests vulnerable to .netrc credentials leak
+  1. types-dataclasses [score: 45, HIGH]
+     last release was 1362 days ago (>3 years)
+  2. flask → click → colorama [score: 47, HIGH]
+     last release was 1245 days ago (>3 years)
+  3. pytest → colorama [score: 47, HIGH]
+     last release was 1245 days ago (>3 years)
+  4. tox-uv → tox-uv-bare → tox → colorama [score: 47, HIGH]
+     last release was 1245 days ago (>3 years)
+
+Result: FAIL
+```
+
+**That's the xkcd 2347 problem, made visible.** `colorama` is the person in Nebraska — one package, deep in your tree, unmaintained for 3+ years, and 10 of your dependencies rely on it. depscope doesn't just tell you `colorama` is risky — it shows you every path from your app to that risk.
+
+### CVE scan — old packages with known vulnerabilities
+
+```
+$ depscope scan /path/to/old-project --profile enterprise
 
 Issues:
   [CRITICAL] requests: CVE: GHSA-9wx4-h78v-vm56 — Requests Session verify bypass
   [CRITICAL] urllib3: CVE: GHSA-34jh-p97f-mpxf — Proxy-Authorization header leak
-  [CRITICAL] urllib3: CVE: GHSA-g4mx-q9vg-27p4 — Request body not stripped
   [CRITICAL] urllib3: CVE: GHSA-v845-jxx5-vc9f — Cookie header cross-origin leak
   [HIGH] cryptography: CVE: GHSA-jfhm-5ghh-2f97 — NULL-dereference in PKCS7
-  ...
+  [CRITICAL] werkzeug: CVE: GHSA-2g68-c3qc-8985 — debugger remote execution
+  ... (32 CVEs total across 4 packages)
 
 Result: FAIL
 ```
@@ -247,6 +297,21 @@ vuln_sources:
 ```bash
 depscope scan . --config depscope.yaml
 ```
+
+## How depscope is different
+
+| Tool | Focus | Limitation |
+|------|-------|-----------|
+| **Snyk, Dependabot** | Known CVEs | Only finds *already discovered* vulnerabilities |
+| **npm audit** | Known CVEs | Single ecosystem, no transitive reputation |
+| **Socket.dev** | Install scripts, typosquatting | Closed source, npm-only |
+| **depscope** | **Reputation of the entire tree** | Complements CVE scanners — finds risk *before* it becomes a CVE |
+
+CVE scanners answer: *"Is this package broken right now?"*
+
+depscope answers: *"Is this package likely to become a problem?"*
+
+Both matter. Use them together.
 
 ## Architecture
 
