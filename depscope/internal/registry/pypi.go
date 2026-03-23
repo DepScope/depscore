@@ -53,6 +53,46 @@ func (c *PyPIClient) Fetch(name, version string) (*PackageInfo, error) {
 	return raw.toPackageInfo(version), nil
 }
 
+// extractSourceURL finds a source/repository URL from project_urls using
+// case-insensitive matching against common key names. Falls back to home_page
+// if it looks like a GitHub/GitLab URL.
+func extractSourceURL(projectURLs map[string]string, homePage string) string {
+	// Priority order of keys to check (case-insensitive)
+	priorities := []string{
+		"source", "source code", "repository", "code",
+		"github", "gitlab", "homepage", "home",
+	}
+	for _, key := range priorities {
+		for k, v := range projectURLs {
+			if strings.EqualFold(k, key) && v != "" {
+				if isRepoURL(v) {
+					return v
+				}
+			}
+		}
+	}
+	// Second pass: any project URL that looks like a repo
+	for _, v := range projectURLs {
+		if isRepoURL(v) {
+			return v
+		}
+	}
+	// Fall back to home_page if it's a repo URL
+	if homePage != "" && isRepoURL(homePage) {
+		return homePage
+	}
+	return ""
+}
+
+func isRepoURL(u string) bool {
+	lower := strings.ToLower(u)
+	return strings.Contains(lower, "github.com") ||
+		strings.Contains(lower, "gitlab.com") ||
+		strings.Contains(lower, "bitbucket.org") ||
+		strings.Contains(lower, "codeberg.org") ||
+		strings.Contains(lower, "sr.ht")
+}
+
 // ---- raw JSON shapes -------------------------------------------------------
 
 type pypiResponse struct {
@@ -99,12 +139,10 @@ func (r pypiResponse) toPackageInfo(requestedVersion string) *PackageInfo {
 	}
 	info.MaintainerCount = len(people)
 
-	// SourceRepoURL: prefer project_urls["Source"], fall back to home_page.
-	if src, ok := r.Info.ProjectURLs["Source"]; ok && src != "" {
-		info.SourceRepoURL = src
-	} else if r.Info.HomePage != "" {
-		info.SourceRepoURL = r.Info.HomePage
-	}
+	// SourceRepoURL: search project_urls with various common key names,
+	// fall back to home_page. PyPI has no standard key — projects use
+	// "Source", "Source Code", "source", "Homepage", "Repository", etc.
+	info.SourceRepoURL = extractSourceURL(r.Info.ProjectURLs, r.Info.HomePage)
 
 	// IsDeprecated: check classifiers for "Inactive".
 	for _, c := range r.Info.Classifiers {

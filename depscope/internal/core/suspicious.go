@@ -67,13 +67,17 @@ func DetectSuspicious(results []PackageResult, infos map[string]*registry.Packag
 		}
 
 		// 3. Package with no source repository
-		// Legitimate packages almost always link to a source repo
-		if info.SourceRepoURL == "" {
+		// Only flag if the package has significant downloads or is depended on.
+		// Many small/new packages legitimately don't have project_urls set yet.
+		if info.SourceRepoURL == "" && (info.MonthlyDownloads > 10_000 || r.DependedOnCount > 2) {
 			indicators = append(indicators, SuspiciousIndicator{
 				Package:  r.Name,
 				Type:     "no_source",
 				Severity: SeverityMedium,
-				Message:  "no source repository linked — cannot verify code origin",
+				Message: fmt.Sprintf(
+					"no source repository linked — cannot verify code origin (downloads: %dk/month)",
+					info.MonthlyDownloads/1000,
+				),
 			})
 		}
 

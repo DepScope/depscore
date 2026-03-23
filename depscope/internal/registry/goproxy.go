@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -69,6 +70,19 @@ func (r goProxyInfo) toPackageInfo(name string) *PackageInfo {
 
 	if t, err := time.Parse(time.RFC3339, r.Time); err == nil {
 		info.LastReleaseAt = t
+	}
+
+	// Go module path often IS the repo URL (e.g. github.com/spf13/cobra)
+	if strings.HasPrefix(name, "github.com/") {
+		parts := strings.SplitN(name, "/", 4) // github.com/owner/repo[/subpackage]
+		if len(parts) >= 3 {
+			info.SourceRepoURL = "https://" + parts[0] + "/" + parts[1] + "/" + parts[2]
+		}
+	} else if strings.HasPrefix(name, "gitlab.com/") {
+		parts := strings.SplitN(name, "/", 4)
+		if len(parts) >= 3 {
+			info.SourceRepoURL = "https://" + parts[0] + "/" + parts[1] + "/" + parts[2]
+		}
 	}
 
 	return info
