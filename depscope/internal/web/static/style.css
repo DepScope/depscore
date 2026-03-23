@@ -746,6 +746,10 @@ details[open] .issue-summary-title::before { transform: rotate(90deg); }
   font-size: 12px;
 }
 
+.issue-filter { cursor: pointer; transition: opacity 0.15s; }
+.issue-filter:hover { opacity: 0.8; }
+.filter-inactive { opacity: 0.3; }
+
 .pkg-expand {
   cursor: pointer;
   display: inline-block;

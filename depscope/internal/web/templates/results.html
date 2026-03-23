@@ -63,7 +63,7 @@
   <summary class="issue-summary-title">
     Issues
     {{range $sev, $count := issueCounts .AllIssues}}
-    <span class="badge sev-{{lower $sev}}">{{$sev}} {{$count}}</span>
+    <span class="badge sev-{{lower $sev}} issue-filter" data-severity="{{lower $sev}}">{{$sev}} {{$count}}</span>
     {{end}}
   </summary>
   <ul class="issue-list">

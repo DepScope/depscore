@@ -497,4 +497,36 @@
     div.textContent = str;
     return div.innerHTML;
   }
+
+  /* =========================================================
+     Issue Severity Filter
+     ========================================================= */
+  var activeFilter = null;
+  var filters = document.querySelectorAll('.issue-filter');
+  var issueItems = document.querySelectorAll('.issue-item');
+
+  filters.forEach(function (badge) {
+    badge.style.cursor = 'pointer';
+    badge.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var sev = badge.dataset.severity;
+
+      if (activeFilter === sev) {
+        // Toggle off — show all
+        activeFilter = null;
+        filters.forEach(function (f) { f.classList.remove('filter-inactive'); });
+        issueItems.forEach(function (li) { li.style.display = ''; });
+      } else {
+        // Filter to this severity
+        activeFilter = sev;
+        filters.forEach(function (f) {
+          f.classList.toggle('filter-inactive', f.dataset.severity !== sev);
+        });
+        issueItems.forEach(function (li) {
+          li.style.display = li.classList.contains('sev-' + sev) ? '' : 'none';
+        });
+      }
+    });
+  });
 })();
