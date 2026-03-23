@@ -69,6 +69,21 @@ func DetectEcosystem(dir string) (Ecosystem, error) {
 	return "", fmt.Errorf("no recognized manifest found in %s", dir)
 }
 
+// DetectAllEcosystems returns all ecosystems detected in dir (deduped).
+func DetectAllEcosystems(dir string) []Ecosystem {
+	seen := make(map[Ecosystem]bool)
+	var result []Ecosystem
+	for _, ef := range ecosystemFiles {
+		if _, err := os.Stat(filepath.Join(dir, ef.file)); err == nil {
+			if !seen[ef.ecosystem] {
+				seen[ef.ecosystem] = true
+				result = append(result, ef.ecosystem)
+			}
+		}
+	}
+	return result
+}
+
 func DetectEcosystemFromFiles(filenames []string) (Ecosystem, error) {
 	nameSet := make(map[string]bool)
 	for _, f := range filenames {

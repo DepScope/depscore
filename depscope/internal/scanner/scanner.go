@@ -69,20 +69,31 @@ func ScanURL(ctx context.Context, url string, opts Options) (*core.ScanResult, e
 	return scorePipeline(pkgs, cfg)
 }
 
-// ScanDir scans a local directory.
+// ScanDir scans a local directory. If multiple ecosystems are detected
+// (e.g. package.json + composer.json), all are scanned and merged.
 func ScanDir(dir string, opts Options) (*core.ScanResult, error) {
 	cfg := config.ProfileByName(opts.Profile)
 
-	eco, err := manifest.DetectEcosystem(dir)
-	if err != nil {
-		return nil, fmt.Errorf("detect ecosystem: %w", err)
-	}
-	pkgs, err := manifest.ParserFor(eco).Parse(dir)
-	if err != nil {
-		return nil, fmt.Errorf("parse manifest: %w", err)
+	ecosystems := manifest.DetectAllEcosystems(dir)
+	if len(ecosystems) == 0 {
+		return nil, fmt.Errorf("no recognized manifest found in %s", dir)
 	}
 
-	return scorePipeline(pkgs, cfg)
+	var allPkgs []manifest.Package
+	for _, eco := range ecosystems {
+		pkgs, err := manifest.ParserFor(eco).Parse(dir)
+		if err != nil {
+			log.Printf("warning: %s parser failed: %v", eco, err)
+			continue
+		}
+		allPkgs = append(allPkgs, pkgs...)
+	}
+
+	if len(allPkgs) == 0 {
+		return nil, fmt.Errorf("no packages found in %s", dir)
+	}
+
+	return scorePipeline(allPkgs, cfg)
 }
 
 // scorePipeline fetches registry data, scores each package, and propagates
