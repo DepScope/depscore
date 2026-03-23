@@ -1,0 +1,11 @@
+{
+  "crate": {
+    "name": "serde",
+    "downloads": 150000000,
+    "repository": "https://github.com/serde-rs/serde"
+  },
+  "versions": [
+    {"num": "1.0.196", "updated_at": "2024-01-20T00:00:00Z"},
+    {"num": "1.0.195", "updated_at": "2024-01-10T00:00:00Z"}
+  ]
+}

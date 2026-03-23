@@ -1,0 +1,49 @@
+{{define "content"}}
+<div class="landing">
+  <div class="landing-hero">
+    <h1 class="landing-logo">depscope</h1>
+    <p class="landing-tagline">Supply chain reputation scoring for your dependencies</p>
+  </div>
+
+  <form class="scan-form" action="/scan" method="POST">
+    <div class="scan-input-group">
+      <input
+        type="text"
+        name="url"
+        class="scan-url-input"
+        placeholder="https://github.com/owner/repo"
+        required
+        autofocus
+      />
+      <select name="profile" class="scan-profile-select">
+        <option value="enterprise">Enterprise</option>
+        <option value="opensource">Open Source</option>
+        <option value="hobby">Hobby</option>
+      </select>
+      <button type="submit" class="scan-button">Scan</button>
+    </div>
+  </form>
+
+  <p class="landing-example">
+    Try: <a href="#" class="example-link" onclick="document.querySelector('.scan-url-input').value='https://github.com/psf/requests';return false;">https://github.com/psf/requests</a>
+  </p>
+
+  <div class="landing-features">
+    <div class="feature-card">
+      <div class="feature-icon">&#x1F50D;</div>
+      <h3>Deep Analysis</h3>
+      <p>Scores direct and transitive dependencies across multiple ecosystems.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x26A0;&#xFE0F;</div>
+      <h3>Risk Detection</h3>
+      <p>Identifies unmaintained packages, high vulnerability counts, and suspicious patterns.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x2705;</div>
+      <h3>Pass/Fail Gates</h3>
+      <p>Configurable thresholds for hobby, open source, and enterprise profiles.</p>
+    </div>
+  </div>
+</div>
+{{end}}

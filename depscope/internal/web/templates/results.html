@@ -1,0 +1,127 @@
+{{define "content"}}
+{{if .Error}}
+<div class="results-error">
+  <h2>Scan Failed</h2>
+  <p class="error-url"><a href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a></p>
+  <div class="error-box">{{.Error}}</div>
+  <a href="/" class="btn-secondary">Try another URL</a>
+</div>
+{{else}}
+{{with .Result}}
+
+{{/* Determine worst score across all packages */}}
+{{$worstScore := 100}}
+{{range .Packages}}
+  {{if lt .FinalScore $worstScore}}{{$worstScore = .FinalScore}}{{end}}
+{{end}}
+
+<div class="results-header">
+  <div class="results-meta">
+    <a href="{{$.URL}}" target="_blank" rel="noopener" class="results-url">{{$.URL}}</a>
+    {{if .Passed}}
+    <span class="badge-result pass">PASS</span>
+    {{else}}
+    <span class="badge-result fail">FAIL</span>
+    {{end}}
+    <span class="results-profile">profile: {{.Profile}}</span>
+  </div>
+
+  <div class="results-stats">
+    <div class="stat">
+      <span class="stat-value">{{.DirectDeps}}</span>
+      <span class="stat-label">direct deps</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value">{{.TransitiveDeps}}</span>
+      <span class="stat-label">transitive</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value">{{len .AllIssues}}</span>
+      <span class="stat-label">issues</span>
+    </div>
+  </div>
+
+  <div class="score-gauge-wrap">
+    {{$circumference := 283}}
+    {{$dashOffset := scoreDashOffset $worstScore $circumference}}
+    <svg class="score-gauge" viewBox="0 0 100 100" width="120" height="120">
+      <circle class="gauge-bg" cx="50" cy="50" r="45" />
+      <circle
+        class="gauge-fill risk-stroke-{{lower (riskColor $worstScore)}}"
+        cx="50" cy="50" r="45"
+        stroke-dasharray="{{$circumference}}"
+        stroke-dashoffset="{{$dashOffset}}"
+      />
+      <text class="gauge-score" x="50" y="54" text-anchor="middle">{{$worstScore}}</text>
+      <text class="gauge-label" x="50" y="67" text-anchor="middle">worst</text>
+    </svg>
+  </div>
+</div>
+
+{{if .AllIssues}}
+<details class="issue-summary">
+  <summary class="issue-summary-title">
+    Issues
+    {{range $sev, $count := issueCounts .AllIssues}}
+    <span class="badge sev-{{lower $sev}} issue-filter" data-severity="{{lower $sev}}">{{$sev}} {{$count}}</span>
+    {{end}}
+  </summary>
+  <ul class="issue-list">
+    {{range .AllIssues}}
+    <li class="issue-item sev-{{lower .Severity}}">
+      <span class="issue-pkg">{{.Package}}</span>
+      <span class="issue-sev badge sev-{{lower .Severity}}">{{.Severity}}</span>
+      <span class="issue-msg">{{.Message}}</span>
+    </li>
+    {{end}}
+  </ul>
+</details>
+{{end}}
+
+<div class="table-wrap">
+  <table class="pkg-table" id="pkg-table">
+    <thead>
+      <tr>
+        <th data-col="name" class="sortable">Package</th>
+        <th data-col="version" class="sortable">Version</th>
+        <th data-col="score" class="sortable">Score</th>
+        <th data-col="risk" class="sortable">Risk</th>
+        <th data-col="transitive" class="sortable">Transitive</th>
+        <th data-col="constraint" class="sortable">Constraint</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Packages}}
+      <tr class="pkg-row"
+          data-eco="{{.Ecosystem}}"
+          data-name="{{.Name}}"
+          data-version="{{.Version}}"
+          data-score="{{.OwnScore}}"
+          data-risk="{{.OwnRisk}}"
+          data-transitive-risk="{{.TransitiveRisk}}"
+          data-constraint="{{.ConstraintType}}"
+          data-depth="0"
+          data-deps-count="{{len .DependsOn}}">
+        <td class="pkg-name">{{if .DependsOn}}<span class="pkg-expand" title="Show dependencies ({{len .DependsOn}})">&#9654;</span>{{else}}<span class="pkg-expand-none"></span>{{end}} {{.Name}}</td>
+        <td class="pkg-version">{{.Version}}</td>
+        <td class="pkg-score">{{.OwnScore}}</td>
+        <td><span class="badge risk-{{lower .OwnRisk}}">{{.OwnRisk}}</span></td>
+        <td><span class="badge risk-{{lower .TransitiveRisk}}">{{.TransitiveRisk}}</span></td>
+        <td class="pkg-constraint">{{.ConstraintType}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+
+{{end}}
+{{end}}
+
+<div id="panel" class="panel hidden">
+  <div class="panel-overlay"></div>
+  <div class="panel-content">
+    <button class="panel-close" aria-label="Close">&times;</button>
+    <div id="panel-body"></div>
+  </div>
+</div>
+{{end}}
