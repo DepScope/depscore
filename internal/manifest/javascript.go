@@ -179,4 +179,3 @@ func parsePackageLockJSONBytes(data []byte) (map[string]string, error) {
 	}
 	return resolved, nil
 }
-
