@@ -40,7 +40,7 @@ func (c *PackagistClient) Fetch(name, version string) (*PackageInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("packagist: GET %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("packagist: GET %s returned %d", url, resp.StatusCode)

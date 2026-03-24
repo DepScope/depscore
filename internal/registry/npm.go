@@ -44,7 +44,7 @@ func (c *NPMClient) Fetch(name, version string) (*PackageInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("npm: GET %s: %w", apiURL, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("npm: GET %s returned %d", apiURL, resp.StatusCode)
@@ -70,7 +70,7 @@ func (c *NPMClient) FetchDependencies(name, version string) ([]Dependency, error
 	if err != nil {
 		return nil, fmt.Errorf("npm: GET %s: %w", apiURL, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("npm: GET %s returned %d", apiURL, resp.StatusCode)

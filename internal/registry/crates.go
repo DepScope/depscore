@@ -45,7 +45,7 @@ func (c *CratesClient) Fetch(name, version string) (*PackageInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("crates: GET %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("crates: GET %s returned %d", url, resp.StatusCode)
