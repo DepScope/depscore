@@ -21,8 +21,9 @@ func init() {
 }
 
 var discoverCmd = &cobra.Command{
-	Use:   "discover <package> [path]",
-	Short: "Find projects affected by a compromised package",
+	Use:          "discover <package> [path]",
+	Short:        "Find projects affected by a compromised package",
+	SilenceUsage: true,
 	Long: `Search across multiple projects to find all occurrences of a package
 and classify exposure against a compromised version range.
 
