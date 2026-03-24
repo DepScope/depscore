@@ -86,15 +86,20 @@ func (r packagistResponse) toPackageInfo(name, requestedVersion string) *Package
 		}
 	}
 
+	// Use the first (latest) entry
+	latest := versions[0]
+
+	version := requestedVersion
+	if version == "" {
+		version = strings.TrimPrefix(latest.Version, "v")
+	}
+
 	info := &PackageInfo{
 		Name:         name,
-		Version:      requestedVersion,
+		Version:      version,
 		Ecosystem:    "Packagist",
 		ReleaseCount: len(versions),
 	}
-
-	// Use the first (latest) entry for maintainer count, source URL, and release time.
-	latest := versions[0]
 	info.MaintainerCount = len(latest.Authors)
 
 	// SourceRepoURL: strip .git suffix.
