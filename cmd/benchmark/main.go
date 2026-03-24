@@ -52,7 +52,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "open %s: %v\n", file, err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	var fetcher registry.Fetcher
 	var mEco manifest.Ecosystem

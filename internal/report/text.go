@@ -35,8 +35,8 @@ func WriteText(w io.Writer, result core.ScanResult) error {
 
 	// Risk paths: show worst dependency chains
 	if len(result.RiskPaths) > 0 {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Risk Paths (worst dependency chains):")
+		fmt.Fprintln(w)                                       //nolint:errcheck
+		fmt.Fprintln(w, "Risk Paths (worst dependency chains):") //nolint:errcheck
 		for i, rp := range result.RiskPaths {
 			chain := ""
 			for j, name := range rp.Chain {

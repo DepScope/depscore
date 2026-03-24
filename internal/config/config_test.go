@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/depscope/depscope/internal/config"
@@ -40,15 +39,13 @@ func TestPartialWeightOverrideRenormalizes(t *testing.T) {
 }
 
 func TestEnvVarResolution(t *testing.T) {
-	os.Setenv("TEST_DEPSCOPE_TOKEN", "secret123")
-	defer os.Unsetenv("TEST_DEPSCOPE_TOKEN")
+	t.Setenv("TEST_DEPSCOPE_TOKEN", "secret123")
 	assert.Equal(t, "secret123", config.ResolveEnv("${TEST_DEPSCOPE_TOKEN}"))
 	assert.Equal(t, "literal", config.ResolveEnv("literal"))
 }
 
 func TestLoadFile(t *testing.T) {
-	os.Setenv("GITHUB_TOKEN", "ghp_test")
-	defer os.Unsetenv("GITHUB_TOKEN")
+	t.Setenv("GITHUB_TOKEN", "ghp_test")
 
 	cfg, err := config.LoadFile("testdata/depscope.yaml")
 	require.NoError(t, err)

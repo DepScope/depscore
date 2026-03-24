@@ -99,7 +99,7 @@ func (r *GitLabResolver) fetchDefaultBranch(ctx context.Context, encodedProject 
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("GitLab API %s: %d", apiURL, resp.StatusCode)
@@ -128,7 +128,7 @@ func (r *GitLabResolver) fetchTreePage(ctx context.Context, encodedProject, ref 
 	if err != nil {
 		return nil, false, err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, false, fmt.Errorf("GitLab API tree: %d", resp.StatusCode)
@@ -168,7 +168,7 @@ func (r *GitLabResolver) fetchFileRaw(ctx context.Context, encodedProject, ref, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GitLab API file %s: %d", filePath, resp.StatusCode)

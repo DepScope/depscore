@@ -2,8 +2,6 @@
 package report
 
 import (
-	"time"
-
 	"github.com/depscope/depscope/internal/core"
 )
 
@@ -84,6 +82,3 @@ func SampleScanResult() core.ScanResult {
 	}
 }
 
-// sampleScanTime is a fixed time used by the JSON reporter fixture for
-// deterministic output in tests.
-var sampleScanTime = time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)

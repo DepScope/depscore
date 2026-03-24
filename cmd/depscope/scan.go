@@ -6,8 +6,6 @@ import (
 
 	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/core"
-	"github.com/depscope/depscope/internal/manifest"
-	"github.com/depscope/depscope/internal/registry"
 	"github.com/depscope/depscope/internal/report"
 	"github.com/depscope/depscope/internal/resolve"
 	"github.com/depscope/depscope/internal/scanner"
@@ -115,30 +113,3 @@ func loadConfig(cmd *cobra.Command) (config.Config, error) {
 	return config.ProfileByName(profile), nil
 }
 
-// buildFetchers constructs the FetchersByEcosystem map for the given ecosystem.
-func buildFetchers(eco manifest.Ecosystem) registry.FetchersByEcosystem {
-	fetchers := registry.FetchersByEcosystem{}
-	switch eco {
-	case manifest.EcosystemPython:
-		fetchers["PyPI"] = registry.NewPyPIClient()
-	case manifest.EcosystemNPM:
-		fetchers["npm"] = registry.NewNPMClient()
-	case manifest.EcosystemRust:
-		fetchers["crates.io"] = registry.NewCratesClient()
-	case manifest.EcosystemGo:
-		fetchers["Go"] = registry.NewGoProxyClient()
-	}
-	return fetchers
-}
-
-// buildAllFetchers returns a FetchersByEcosystem map populated with all
-// supported registry clients. Used when scanning remote repos that may
-// contain multiple ecosystems.
-func buildAllFetchers() registry.FetchersByEcosystem {
-	return registry.FetchersByEcosystem{
-		"PyPI":      registry.NewPyPIClient(),
-		"npm":       registry.NewNPMClient(),
-		"crates.io": registry.NewCratesClient(),
-		"Go":        registry.NewGoProxyClient(),
-	}
-}

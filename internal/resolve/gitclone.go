@@ -32,7 +32,7 @@ func (r *GitCloneResolver) Resolve(ctx context.Context, url string) ([]ManifestF
 		return nil, func() {}, fmt.Errorf("create temp dir: %w", err)
 	}
 
-	cleanup := func() { os.RemoveAll(tmpDir) }
+	cleanup := func() { _ = os.RemoveAll(tmpDir) }
 
 	if _, err := exec.LookPath("git"); err != nil {
 		return nil, cleanup, fmt.Errorf("git is required for scanning non-GitHub/GitLab URLs: %w", err)

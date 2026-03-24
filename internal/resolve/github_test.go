@@ -48,11 +48,11 @@ func TestGitHubResolver(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.Contains(r.URL.Path, "/git/trees/"):
-			w.Write(treeData)
+			_, _ = w.Write(treeData)
 		case strings.HasSuffix(r.URL.Path, "/go.mod"):
-			w.Write(gomodData)
+			_, _ = w.Write(gomodData)
 		case strings.HasSuffix(r.URL.Path, "/go.sum"):
-			w.Write(gosumData)
+			_, _ = w.Write(gosumData)
 		case strings.HasSuffix(r.URL.Path, "/spf13/cobra"):
 			w.Write([]byte(repoResp))
 		default:
@@ -106,11 +106,11 @@ func TestGitHubResolverTruncatedTree(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.Contains(r.URL.Path, "/git/trees/"):
-			w.Write(data)
+			_, _ = w.Write(data)
 		case strings.Contains(r.URL.Path, "/contents/"):
-			w.Write(gomodData)
+			_, _ = w.Write(gomodData)
 		default:
-			w.Write([]byte(repoResp))
+			_, _ = w.Write([]byte(repoResp))
 		}
 	}))
 	defer srv.Close()
@@ -144,9 +144,9 @@ func TestGitHubResolverWithRef(t *testing.T) {
 			if len(parts) == 2 {
 				capturedTreeRef = strings.Split(parts[1], "?")[0]
 			}
-			w.Write(treeData)
+			_, _ = w.Write(treeData)
 		} else {
-			w.Write(gomodData)
+			_, _ = w.Write(gomodData)
 		}
 	}))
 	defer srv.Close()
