@@ -1,0 +1,2780 @@
+{
+  "profile": "enterprise",
+  "pass_threshold": 70,
+  "passed": false,
+  "direct_deps": 19,
+  "transitive_deps": 64,
+  "packages": [
+    {
+      "name": "alabaster",
+      "version": "1.0.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 63,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "alabaster",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (68 open of 68 total)"
+        }
+      ]
+    },
+    {
+      "name": "anyio",
+      "version": "4.12.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 74,
+      "transitive_risk_score": 74,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 3,
+      "depended_on_count": 3,
+      "issues": [
+        {
+          "package": "anyio",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "anyio",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (82 open of 82 total)"
+        },
+        {
+          "package": "anyio",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "asgiref",
+      "version": "3.11.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 84,
+      "transitive_risk_score": 87,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 1,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "asgiref",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (72 open of 72 total)"
+        }
+      ]
+    },
+    {
+      "name": "babel",
+      "version": "2.18.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 87,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "babel",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (207 open of 207 total)"
+        }
+      ]
+    },
+    {
+      "name": "blinker",
+      "version": "1.9.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 74,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1
+    },
+    {
+      "name": "cachetools",
+      "version": "7.0.4",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 74,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "cachetools",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "cachetools",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (1 open of 1 total)"
+        },
+        {
+          "package": "cachetools",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "certifi",
+      "version": "2026.2.25",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 84,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 3,
+      "issues": [
+        {
+          "package": "certifi",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (2 open of 2 total)"
+        }
+      ]
+    },
+    {
+      "name": "cffi",
+      "version": "2.0.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 79,
+      "transitive_risk_score": 79,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 1,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "cffi",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (46 open of 46 total)"
+        }
+      ]
+    },
+    {
+      "name": "cfgv",
+      "version": "3.5.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 77,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "cfgv",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.4.5",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 81,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "charset-normalizer",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "charset-normalizer",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (1 open of 1 total)"
+        }
+      ]
+    },
+    {
+      "name": "click",
+      "version": "8.3.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 81,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 1,
+      "depended_on_count": 3,
+      "issues": [
+        {
+          "package": "click",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "click",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (161 open of 161 total)"
+        }
+      ]
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 44,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 5,
+      "issues": [
+        {
+          "package": "colorama",
+          "severity": "HIGH",
+          "message": "last release was 1246 days ago (>3 years)"
+        },
+        {
+          "package": "colorama",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "colorama",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (133 open of 133 total)"
+        },
+        {
+          "package": "colorama",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "46.0.5",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 81,
+      "transitive_risk_score": 79,
+      "own_risk": "LOW",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 2,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "cryptography",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "cryptography",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (55 open of 55 total)"
+        }
+      ]
+    },
+    {
+      "name": "distlib",
+      "version": "0.4.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 73,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "distlib",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (19 open of 19 total)"
+        }
+      ]
+    },
+    {
+      "name": "docutils",
+      "version": "0.21.2",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 68,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 2,
+      "issues": [
+        {
+          "package": "docutils",
+          "severity": "INFO",
+          "message": "open issue ratio unknown (no source repo linked)"
+        },
+        {
+          "package": "docutils",
+          "severity": "MEDIUM",
+          "message": "organization backing unknown (no source repo linked)"
+        },
+        {
+          "package": "docutils",
+          "severity": "MEDIUM",
+          "message": "repository health unknown (no source repo linked)"
+        }
+      ]
+    },
+    {
+      "name": "exceptiongroup",
+      "version": "1.3.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 74,
+      "transitive_risk_score": 87,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 1,
+      "depended_on_count": 2,
+      "issues": [
+        {
+          "package": "exceptiongroup",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "exceptiongroup",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (5 open of 5 total)"
+        },
+        {
+          "package": "exceptiongroup",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "filelock",
+      "version": "3.25.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 87,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 3,
+      "issues": [
+        {
+          "package": "filelock",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        }
+      ]
+    },
+    {
+      "name": "flask",
+      "version": "3.2.0.dev0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 81,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 6,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "flask",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "flask",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (4 open of 4 total)"
+        }
+      ]
+    },
+    {
+      "name": "gha-update",
+      "version": "0.2.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 63,
+      "transitive_risk_score": 49,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 2,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "gha-update",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "gha-update",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (9 open of 9 total)"
+        },
+        {
+          "package": "gha-update",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "greenlet",
+      "version": "3.3.2",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 84,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "greenlet",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (24 open of 24 total)"
+        }
+      ]
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 73,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 2,
+      "issues": [
+        {
+          "package": "h11",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (36 open of 36 total)"
+        }
+      ]
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 76,
+      "transitive_risk_score": 78,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 2,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "httpcore",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "httpcore",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (34 open of 34 total)"
+        }
+      ]
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 76,
+      "transitive_risk_score": 74,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 4,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "httpx",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "httpx",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (149 open of 149 total)"
+        }
+      ]
+    },
+    {
+      "name": "identify",
+      "version": "2.6.17",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 84,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "identify",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (4 open of 4 total)"
+        }
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.11",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 69,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 3,
+      "issues": [
+        {
+          "package": "idna",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "idna",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (5 open of 5 total)"
+        },
+        {
+          "package": "idna",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "imagesize",
+      "version": "2.0.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 76,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "imagesize",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (4 open of 4 total)"
+        },
+        {
+          "package": "imagesize",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "iniconfig",
+      "version": "2.3.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 84,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "iniconfig",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (1 open of 1 total)"
+        }
+      ]
+    },
+    {
+      "name": "itsdangerous",
+      "version": "2.2.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 63,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "itsdangerous",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "itsdangerous",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (2 open of 2 total)"
+        }
+      ]
+    },
+    {
+      "name": "jinja2",
+      "version": "3.1.6",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 63,
+      "transitive_risk_score": 81,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 1,
+      "depended_on_count": 2,
+      "issues": [
+        {
+          "package": "jinja2",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "jinja2",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (97 open of 97 total)"
+        }
+      ]
+    },
+    {
+      "name": "librt",
+      "version": "0.8.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 84,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "librt",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (2 open of 2 total)"
+        }
+      ]
+    },
+    {
+      "name": "markupsafe",
+      "version": "3.0.3",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 76,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 3,
+      "issues": [
+        {
+          "package": "markupsafe",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "markupsafe",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (10 open of 10 total)"
+        }
+      ]
+    },
+    {
+      "name": "mypy",
+      "version": "1.19.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 81,
+      "transitive_risk_score": 76,
+      "own_risk": "LOW",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 5,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "mypy",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "mypy",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (3111 open of 3111 total)"
+        }
+      ]
+    },
+    {
+      "name": "mypy-extensions",
+      "version": "1.1.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 71,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "mypy-extensions",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "mypy-extensions",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (7 open of 7 total)"
+        }
+      ]
+    },
+    {
+      "name": "nodeenv",
+      "version": "1.10.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 76,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 2,
+      "issues": [
+        {
+          "package": "nodeenv",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (50 open of 50 total)"
+        },
+        {
+          "package": "nodeenv",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "packaging",
+      "version": "26.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 81,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 6,
+      "issues": [
+        {
+          "package": "packaging",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "packaging",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (109 open of 109 total)"
+        }
+      ]
+    },
+    {
+      "name": "pallets-sphinx-themes",
+      "version": "2.5.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 81,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 3,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "pallets-sphinx-themes",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "pallets-sphinx-themes",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (1 open of 1 total)"
+        }
+      ]
+    },
+    {
+      "name": "pathspec",
+      "version": "1.0.4",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 74,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "pathspec",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "pathspec",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (4 open of 4 total)"
+        },
+        {
+          "package": "pathspec",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.9.4",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 93,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 3
+    },
+    {
+      "name": "pluggy",
+      "version": "1.6.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 60,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 2,
+      "issues": [
+        {
+          "package": "pluggy",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "pluggy",
+          "severity": "INFO",
+          "message": "open issue ratio unknown (no source repo linked)"
+        },
+        {
+          "package": "pluggy",
+          "severity": "MEDIUM",
+          "message": "organization backing unknown (no source repo linked)"
+        },
+        {
+          "package": "pluggy",
+          "severity": "MEDIUM",
+          "message": "repository health unknown (no source repo linked)"
+        }
+      ]
+    },
+    {
+      "name": "pre-commit",
+      "version": "4.5.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 84,
+      "transitive_risk_score": 78,
+      "own_risk": "LOW",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 5,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "pre-commit",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (30 open of 30 total)"
+        }
+      ]
+    },
+    {
+      "name": "pre-commit-uv",
+      "version": "4.2.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 87,
+      "transitive_risk_score": 78,
+      "own_risk": "LOW",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 2,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "pre-commit-uv",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        }
+      ]
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 74,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "pycparser",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "pycparser",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (31 open of 31 total)"
+        },
+        {
+          "package": "pycparser",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "pygments",
+      "version": "2.19.2",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 82,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 3,
+      "issues": [
+        {
+          "package": "pygments",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (586 open of 586 total)"
+        }
+      ]
+    },
+    {
+      "name": "pyproject-api",
+      "version": "1.10.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 87,
+      "transitive_risk_score": 79,
+      "own_risk": "LOW",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 2,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "pyproject-api",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        }
+      ]
+    },
+    {
+      "name": "pyright",
+      "version": "1.1.408",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 74,
+      "transitive_risk_score": 81,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 2,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "pyright",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "pyright",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (20 open of 20 total)"
+        },
+        {
+          "package": "pyright",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "pytest",
+      "version": "9.0.2",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 81,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 7,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "pytest",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "pytest",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (1013 open of 1013 total)"
+        }
+      ]
+    },
+    {
+      "name": "python-discovery",
+      "version": "1.1.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 87,
+      "transitive_risk_score": 92,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 2,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "python-discovery",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        }
+      ]
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.2.2",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 74,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "python-dotenv",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "python-dotenv",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (87 open of 87 total)"
+        },
+        {
+          "package": "python-dotenv",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "pyyaml",
+      "version": "6.0.3",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 79,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "pyyaml",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (346 open of 346 total)"
+        }
+      ]
+    },
+    {
+      "name": "requests",
+      "version": "2.32.5",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 79,
+      "transitive_risk_score": 74,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 4,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "requests",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (300 open of 300 total)"
+        }
+      ]
+    },
+    {
+      "name": "roman-numerals",
+      "version": "4.1.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 74,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "roman-numerals",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "roman-numerals",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (5 open of 5 total)"
+        },
+        {
+          "package": "roman-numerals",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "roman-numerals-py",
+      "version": "4.1.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 74,
+      "transitive_risk_score": 79,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 1,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "roman-numerals-py",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "roman-numerals-py",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (5 open of 5 total)"
+        },
+        {
+          "package": "roman-numerals-py",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "ruff",
+      "version": "0.15.5",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 81,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "ruff",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "ruff",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (1965 open of 1965 total)"
+        }
+      ]
+    },
+    {
+      "name": "snowballstemmer",
+      "version": "3.0.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 79,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "snowballstemmer",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (26 open of 26 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinx",
+      "version": "8.1.3",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 84,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 18,
+      "depended_on_count": 5,
+      "issues": [
+        {
+          "package": "sphinx",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (1434 open of 1434 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinx",
+      "version": "8.2.3",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 84,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 18,
+      "depended_on_count": 5,
+      "issues": [
+        {
+          "package": "sphinx",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (1434 open of 1434 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinx-autobuild",
+      "version": "2024.10.3",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 73,
+      "transitive_risk_score": 49,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 6,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "sphinx-autobuild",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (31 open of 31 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinx-autobuild",
+      "version": "2025.8.25",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 73,
+      "transitive_risk_score": 49,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 6,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "sphinx-autobuild",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (31 open of 31 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinx-notfound-page",
+      "version": "1.1.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 68,
+      "transitive_risk_score": 49,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 1,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "sphinx-notfound-page",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "sphinx-notfound-page",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (13 open of 13 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinx-tabs",
+      "version": "3.5.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 84,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 3,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "sphinx-tabs",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (30 open of 30 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinxcontrib-applehelp",
+      "version": "2.0.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 58,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "sphinxcontrib-applehelp",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "sphinxcontrib-applehelp",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (3 open of 3 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinxcontrib-devhelp",
+      "version": "2.0.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 58,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "sphinxcontrib-devhelp",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "sphinxcontrib-devhelp",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (3 open of 3 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinxcontrib-htmlhelp",
+      "version": "2.1.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 58,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "sphinxcontrib-htmlhelp",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "sphinxcontrib-htmlhelp",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (8 open of 8 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinxcontrib-jsmath",
+      "version": "1.0.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 47,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "sphinxcontrib-jsmath",
+          "severity": "HIGH",
+          "message": "last release was 2619 days ago (>3 years)"
+        },
+        {
+          "package": "sphinxcontrib-jsmath",
+          "severity": "INFO",
+          "message": "open issue ratio unknown (no source repo linked)"
+        },
+        {
+          "package": "sphinxcontrib-jsmath",
+          "severity": "MEDIUM",
+          "message": "organization backing unknown (no source repo linked)"
+        },
+        {
+          "package": "sphinxcontrib-jsmath",
+          "severity": "MEDIUM",
+          "message": "repository health unknown (no source repo linked)"
+        }
+      ]
+    },
+    {
+      "name": "sphinxcontrib-log-cabinet",
+      "version": "1.0.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 39,
+      "transitive_risk_score": 49,
+      "own_risk": "CRITICAL",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 1,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "sphinxcontrib-log-cabinet",
+          "severity": "HIGH",
+          "message": "last release was 2454 days ago (>3 years)"
+        },
+        {
+          "package": "sphinxcontrib-log-cabinet",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (1 open of 1 total)"
+        },
+        {
+          "package": "sphinxcontrib-log-cabinet",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        },
+        {
+          "package": "sphinxcontrib-log-cabinet",
+          "severity": "HIGH",
+          "message": "last commit was 1221 days ago (>2 years)"
+        }
+      ]
+    },
+    {
+      "name": "sphinxcontrib-qthelp",
+      "version": "2.0.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 58,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "sphinxcontrib-qthelp",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "sphinxcontrib-qthelp",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (4 open of 4 total)"
+        }
+      ]
+    },
+    {
+      "name": "sphinxcontrib-serializinghtml",
+      "version": "2.0.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 58,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "sphinxcontrib-serializinghtml",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "sphinxcontrib-serializinghtml",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (3 open of 3 total)"
+        }
+      ]
+    },
+    {
+      "name": "starlette",
+      "version": "0.52.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 76,
+      "transitive_risk_score": 74,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 2,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "starlette",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (46 open of 46 total)"
+        },
+        {
+          "package": "starlette",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "tomli",
+      "version": "2.4.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 74,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 6,
+      "issues": [
+        {
+          "package": "tomli",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "tomli",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (7 open of 7 total)"
+        },
+        {
+          "package": "tomli",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "tomli-w",
+      "version": "1.2.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 60,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "tomli-w",
+          "severity": "MEDIUM",
+          "message": "single maintainer; bus-factor risk"
+        },
+        {
+          "package": "tomli-w",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (2 open of 2 total)"
+        },
+        {
+          "package": "tomli-w",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "tox",
+      "version": "4.49.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 93,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 11,
+      "depended_on_count": 1
+    },
+    {
+      "name": "tox-uv",
+      "version": "1.33.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 87,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 2,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "tox-uv",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        }
+      ]
+    },
+    {
+      "name": "tox-uv-bare",
+      "version": "1.33.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 87,
+      "transitive_risk_score": 49,
+      "own_risk": "LOW",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 3,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "tox-uv-bare",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        }
+      ]
+    },
+    {
+      "name": "types-contextvars",
+      "version": "2.4.7.3",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 61,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "types-contextvars",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "types-contextvars",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (339 open of 339 total)"
+        }
+      ]
+    },
+    {
+      "name": "types-dataclasses",
+      "version": "0.6.6",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 1,
+      "own_score": 56,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 0,
+      "issues": [
+        {
+          "package": "types-dataclasses",
+          "severity": "HIGH",
+          "message": "last release was 1363 days ago (>3 years)"
+        },
+        {
+          "package": "types-dataclasses",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "types-dataclasses",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (339 open of 339 total)"
+        }
+      ]
+    },
+    {
+      "name": "typing-extensions",
+      "version": "4.15.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 82,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 10,
+      "issues": [
+        {
+          "package": "typing-extensions",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (27 open of 27 total)"
+        }
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "2.6.3",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 87,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "urllib3",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (181 open of 181 total)"
+        }
+      ]
+    },
+    {
+      "name": "uv",
+      "version": "0.10.9",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 81,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 2,
+      "issues": [
+        {
+          "package": "uv",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "uv",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (2695 open of 2695 total)"
+        }
+      ]
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.41.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 76,
+      "transitive_risk_score": 49,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 3,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "uvicorn",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (84 open of 84 total)"
+        },
+        {
+          "package": "uvicorn",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "virtualenv",
+      "version": "21.1.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 87,
+      "transitive_risk_score": 78,
+      "own_risk": "LOW",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 5,
+      "depended_on_count": 2,
+      "issues": [
+        {
+          "package": "virtualenv",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        }
+      ]
+    },
+    {
+      "name": "watchfiles",
+      "version": "1.1.1",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 69,
+      "transitive_risk_score": 74,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 1,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "watchfiles",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "watchfiles",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (45 open of 45 total)"
+        },
+        {
+          "package": "watchfiles",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        }
+      ]
+    },
+    {
+      "name": "websockets",
+      "version": "16.0",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 81,
+      "transitive_risk_score": 100,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "websockets",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "websockets",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (20 open of 20 total)"
+        }
+      ]
+    },
+    {
+      "name": "werkzeug",
+      "version": "3.1.6",
+      "ecosystem": "python",
+      "constraint_type": "exact",
+      "depth": 2,
+      "own_score": 81,
+      "transitive_risk_score": 81,
+      "own_risk": "LOW",
+      "transitive_risk": "LOW",
+      "depends_on_count": 1,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "werkzeug",
+          "severity": "LOW",
+          "message": "single maintainer with recent activity; bus-factor risk"
+        },
+        {
+          "package": "werkzeug",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (3 open of 3 total)"
+        }
+      ]
+    }
+  ],
+  "all_issues": [
+    {
+      "package": "alabaster",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (68 open of 68 total)"
+    },
+    {
+      "package": "anyio",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "anyio",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (82 open of 82 total)"
+    },
+    {
+      "package": "anyio",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "asgiref",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (72 open of 72 total)"
+    },
+    {
+      "package": "babel",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (207 open of 207 total)"
+    },
+    {
+      "package": "cachetools",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "cachetools",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (1 open of 1 total)"
+    },
+    {
+      "package": "cachetools",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "certifi",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (2 open of 2 total)"
+    },
+    {
+      "package": "cffi",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (46 open of 46 total)"
+    },
+    {
+      "package": "cfgv",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "charset-normalizer",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "charset-normalizer",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (1 open of 1 total)"
+    },
+    {
+      "package": "click",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "click",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (161 open of 161 total)"
+    },
+    {
+      "package": "colorama",
+      "severity": "HIGH",
+      "message": "last release was 1246 days ago (>3 years)"
+    },
+    {
+      "package": "colorama",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "colorama",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (133 open of 133 total)"
+    },
+    {
+      "package": "colorama",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "cryptography",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "cryptography",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (55 open of 55 total)"
+    },
+    {
+      "package": "distlib",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (19 open of 19 total)"
+    },
+    {
+      "package": "docutils",
+      "severity": "INFO",
+      "message": "open issue ratio unknown (no source repo linked)"
+    },
+    {
+      "package": "docutils",
+      "severity": "MEDIUM",
+      "message": "organization backing unknown (no source repo linked)"
+    },
+    {
+      "package": "docutils",
+      "severity": "MEDIUM",
+      "message": "repository health unknown (no source repo linked)"
+    },
+    {
+      "package": "exceptiongroup",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "exceptiongroup",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (5 open of 5 total)"
+    },
+    {
+      "package": "exceptiongroup",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "filelock",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "flask",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "flask",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (4 open of 4 total)"
+    },
+    {
+      "package": "gha-update",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "gha-update",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (9 open of 9 total)"
+    },
+    {
+      "package": "gha-update",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "greenlet",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (24 open of 24 total)"
+    },
+    {
+      "package": "h11",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (36 open of 36 total)"
+    },
+    {
+      "package": "httpcore",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "httpcore",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (34 open of 34 total)"
+    },
+    {
+      "package": "httpx",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "httpx",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (149 open of 149 total)"
+    },
+    {
+      "package": "identify",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (4 open of 4 total)"
+    },
+    {
+      "package": "idna",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "idna",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (5 open of 5 total)"
+    },
+    {
+      "package": "idna",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "imagesize",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (4 open of 4 total)"
+    },
+    {
+      "package": "imagesize",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "iniconfig",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (1 open of 1 total)"
+    },
+    {
+      "package": "itsdangerous",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "itsdangerous",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (2 open of 2 total)"
+    },
+    {
+      "package": "jinja2",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "jinja2",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (97 open of 97 total)"
+    },
+    {
+      "package": "librt",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (2 open of 2 total)"
+    },
+    {
+      "package": "markupsafe",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "markupsafe",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (10 open of 10 total)"
+    },
+    {
+      "package": "mypy",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "mypy",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (3111 open of 3111 total)"
+    },
+    {
+      "package": "mypy-extensions",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "mypy-extensions",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (7 open of 7 total)"
+    },
+    {
+      "package": "nodeenv",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (50 open of 50 total)"
+    },
+    {
+      "package": "nodeenv",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "packaging",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "packaging",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (109 open of 109 total)"
+    },
+    {
+      "package": "pallets-sphinx-themes",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "pallets-sphinx-themes",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (1 open of 1 total)"
+    },
+    {
+      "package": "pathspec",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "pathspec",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (4 open of 4 total)"
+    },
+    {
+      "package": "pathspec",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "pluggy",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "pluggy",
+      "severity": "INFO",
+      "message": "open issue ratio unknown (no source repo linked)"
+    },
+    {
+      "package": "pluggy",
+      "severity": "MEDIUM",
+      "message": "organization backing unknown (no source repo linked)"
+    },
+    {
+      "package": "pluggy",
+      "severity": "MEDIUM",
+      "message": "repository health unknown (no source repo linked)"
+    },
+    {
+      "package": "pre-commit",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (30 open of 30 total)"
+    },
+    {
+      "package": "pre-commit-uv",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "pycparser",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "pycparser",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (31 open of 31 total)"
+    },
+    {
+      "package": "pycparser",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "pygments",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (586 open of 586 total)"
+    },
+    {
+      "package": "pyproject-api",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "pyright",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "pyright",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (20 open of 20 total)"
+    },
+    {
+      "package": "pyright",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "pytest",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "pytest",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (1013 open of 1013 total)"
+    },
+    {
+      "package": "python-discovery",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "python-dotenv",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "python-dotenv",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (87 open of 87 total)"
+    },
+    {
+      "package": "python-dotenv",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "pyyaml",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (346 open of 346 total)"
+    },
+    {
+      "package": "requests",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (300 open of 300 total)"
+    },
+    {
+      "package": "roman-numerals",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "roman-numerals",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (5 open of 5 total)"
+    },
+    {
+      "package": "roman-numerals",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "roman-numerals-py",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "roman-numerals-py",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (5 open of 5 total)"
+    },
+    {
+      "package": "roman-numerals-py",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "ruff",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "ruff",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (1965 open of 1965 total)"
+    },
+    {
+      "package": "snowballstemmer",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (26 open of 26 total)"
+    },
+    {
+      "package": "sphinx",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (1434 open of 1434 total)"
+    },
+    {
+      "package": "sphinx",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (1434 open of 1434 total)"
+    },
+    {
+      "package": "sphinx-autobuild",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (31 open of 31 total)"
+    },
+    {
+      "package": "sphinx-autobuild",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (31 open of 31 total)"
+    },
+    {
+      "package": "sphinx-notfound-page",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "sphinx-notfound-page",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (13 open of 13 total)"
+    },
+    {
+      "package": "sphinx-tabs",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (30 open of 30 total)"
+    },
+    {
+      "package": "sphinxcontrib-applehelp",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "sphinxcontrib-applehelp",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (3 open of 3 total)"
+    },
+    {
+      "package": "sphinxcontrib-devhelp",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "sphinxcontrib-devhelp",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (3 open of 3 total)"
+    },
+    {
+      "package": "sphinxcontrib-htmlhelp",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "sphinxcontrib-htmlhelp",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (8 open of 8 total)"
+    },
+    {
+      "package": "sphinxcontrib-jsmath",
+      "severity": "HIGH",
+      "message": "last release was 2619 days ago (>3 years)"
+    },
+    {
+      "package": "sphinxcontrib-jsmath",
+      "severity": "INFO",
+      "message": "open issue ratio unknown (no source repo linked)"
+    },
+    {
+      "package": "sphinxcontrib-jsmath",
+      "severity": "MEDIUM",
+      "message": "organization backing unknown (no source repo linked)"
+    },
+    {
+      "package": "sphinxcontrib-jsmath",
+      "severity": "MEDIUM",
+      "message": "repository health unknown (no source repo linked)"
+    },
+    {
+      "package": "sphinxcontrib-log-cabinet",
+      "severity": "HIGH",
+      "message": "last release was 2454 days ago (>3 years)"
+    },
+    {
+      "package": "sphinxcontrib-log-cabinet",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (1 open of 1 total)"
+    },
+    {
+      "package": "sphinxcontrib-log-cabinet",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "sphinxcontrib-log-cabinet",
+      "severity": "HIGH",
+      "message": "last commit was 1221 days ago (>2 years)"
+    },
+    {
+      "package": "sphinxcontrib-qthelp",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "sphinxcontrib-qthelp",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (4 open of 4 total)"
+    },
+    {
+      "package": "sphinxcontrib-serializinghtml",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "sphinxcontrib-serializinghtml",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (3 open of 3 total)"
+    },
+    {
+      "package": "starlette",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (46 open of 46 total)"
+    },
+    {
+      "package": "starlette",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "tomli",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "tomli",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (7 open of 7 total)"
+    },
+    {
+      "package": "tomli",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "tomli-w",
+      "severity": "MEDIUM",
+      "message": "single maintainer; bus-factor risk"
+    },
+    {
+      "package": "tomli-w",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (2 open of 2 total)"
+    },
+    {
+      "package": "tomli-w",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "tox-uv",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "tox-uv-bare",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "types-contextvars",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "types-contextvars",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (339 open of 339 total)"
+    },
+    {
+      "package": "types-dataclasses",
+      "severity": "HIGH",
+      "message": "last release was 1363 days ago (>3 years)"
+    },
+    {
+      "package": "types-dataclasses",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "types-dataclasses",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (339 open of 339 total)"
+    },
+    {
+      "package": "typing-extensions",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (27 open of 27 total)"
+    },
+    {
+      "package": "urllib3",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (181 open of 181 total)"
+    },
+    {
+      "package": "uv",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "uv",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (2695 open of 2695 total)"
+    },
+    {
+      "package": "uvicorn",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (84 open of 84 total)"
+    },
+    {
+      "package": "uvicorn",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "virtualenv",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "watchfiles",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "watchfiles",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (45 open of 45 total)"
+    },
+    {
+      "package": "watchfiles",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "websockets",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "websockets",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (20 open of 20 total)"
+    },
+    {
+      "package": "werkzeug",
+      "severity": "LOW",
+      "message": "single maintainer with recent activity; bus-factor risk"
+    },
+    {
+      "package": "werkzeug",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (3 open of 3 total)"
+    }
+  ]
+}
