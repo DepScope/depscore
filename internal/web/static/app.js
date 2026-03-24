@@ -135,6 +135,7 @@
 
   // Checks that passed (no issues found for these)
   var allChecks = [
+    'vulnerability',
     'release_recency',
     'maintainer_count',
     'download_velocity',
@@ -145,6 +146,7 @@
   ];
 
   var checkLabels = {
+    'vulnerability':     'Known vulnerabilities (CVE)',
     'release_recency':   'Release recency',
     'maintainer_count':  'Maintainer count',
     'download_velocity': 'Download velocity',
@@ -157,6 +159,7 @@
   // Map issue messages to their check category
   function issueToCheck(msg) {
     msg = msg.toLowerCase();
+    if (msg.indexOf('cve:') >= 0 || msg.indexOf('ghsa-') >= 0 || msg.indexOf('pysec-') >= 0) return 'vulnerability';
     if (msg.indexOf('release') >= 0 || msg.indexOf('stale') >= 0) return 'release_recency';
     if (msg.indexOf('maintainer') >= 0 || msg.indexOf('bus-factor') >= 0) return 'maintainer_count';
     if (msg.indexOf('download') >= 0) return 'download_velocity';
