@@ -1,0 +1,116 @@
+{
+  "reputation": [
+    {
+      "ecosystem": "pypi",
+      "count": 100,
+      "avg": 76.5,
+      "min": 54,
+      "max": 87,
+      "low": 27,
+      "medium": 69,
+      "high": 4,
+      "critical": 0
+    },
+    {
+      "ecosystem": "npm",
+      "count": 98,
+      "avg": 78.7,
+      "min": 54,
+      "max": 87,
+      "low": 57,
+      "medium": 36,
+      "high": 5,
+      "critical": 0
+    },
+    {
+      "ecosystem": "crates",
+      "count": 100,
+      "avg": 75.2,
+      "min": 61,
+      "max": 77,
+      "low": 0,
+      "medium": 100,
+      "high": 0,
+      "critical": 0
+    },
+    {
+      "ecosystem": "go",
+      "count": 50,
+      "avg": 65.4,
+      "min": 52,
+      "max": 74,
+      "low": 0,
+      "medium": 38,
+      "high": 12,
+      "critical": 0
+    },
+    {
+      "ecosystem": "packagist",
+      "count": 100,
+      "avg": 74.4,
+      "min": 54,
+      "max": 87,
+      "low": 32,
+      "medium": 59,
+      "high": 9,
+      "critical": 0
+    }
+  ],
+  "cve": [
+    {
+      "ecosystem": "pypi",
+      "scanned": 100,
+      "clean": 100,
+      "vulnerable": 0,
+      "total_cves": 0,
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    },
+    {
+      "ecosystem": "npm",
+      "scanned": 100,
+      "clean": 97,
+      "vulnerable": 3,
+      "total_cves": 3,
+      "critical": 0,
+      "high": 0,
+      "medium": 2,
+      "low": 1
+    },
+    {
+      "ecosystem": "crates",
+      "scanned": 100,
+      "clean": 100,
+      "vulnerable": 0,
+      "total_cves": 0,
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    },
+    {
+      "ecosystem": "go",
+      "scanned": 50,
+      "clean": 49,
+      "vulnerable": 1,
+      "total_cves": 2,
+      "critical": 0,
+      "high": 0,
+      "medium": 2,
+      "low": 0
+    },
+    {
+      "ecosystem": "packagist",
+      "scanned": 100,
+      "clean": 100,
+      "vulnerable": 0,
+      "total_cves": 0,
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    }
+  ]
+}
