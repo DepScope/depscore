@@ -76,8 +76,16 @@ func parseRequirementsTxtBytes(data []byte) ([]Package, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		// Skip options, editable installs, and URLs
+		if strings.HasPrefix(line, "-") || strings.HasPrefix(line, "http") || strings.HasPrefix(line, "git+") {
+			continue
+		}
 		// Strip inline comments
 		if i := strings.Index(line, " #"); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
+		// Strip environment markers (e.g. "; python_version >= '3.8'")
+		if i := strings.Index(line, ";"); i >= 0 {
 			line = strings.TrimSpace(line[:i])
 		}
 
@@ -104,18 +112,32 @@ func parseRequirementsTxtBytes(data []byte) ([]Package, error) {
 	return pkgs, scanner.Err()
 }
 
-// splitRequirement splits a requirement line like "requests==2.31.0" into
-// name="requests" and constraint="==2.31.0".
+// splitRequirement splits a requirement line like "requests[security]>=2.31.0"
+// into name="requests" and constraint=">=2.31.0". Extras in brackets are stripped.
 func splitRequirement(line string) (name, constraint string) {
 	// Operators to try, longest first so ">=" isn't mistaken for ">"
 	ops := []string{"===", "~=", "==", "!=", ">=", "<=", ">", "<", "~"}
 	for _, op := range ops {
 		if i := strings.Index(line, op); i >= 0 {
-			return strings.TrimSpace(line[:i]), strings.TrimSpace(line[i:])
+			name = strings.TrimSpace(line[:i])
+			constraint = strings.TrimSpace(line[i:])
+			name = stripExtras(name)
+			return name, constraint
 		}
 	}
-	// No operator — bare package name
-	return strings.TrimSpace(line), ""
+	// No operator — bare package name (possibly with extras)
+	name = strings.TrimSpace(line)
+	name = stripExtras(name)
+	return name, ""
+}
+
+// stripExtras removes PEP 508 extras from a package name.
+// "requests[security]" → "requests", "uvicorn[standard]" → "uvicorn"
+func stripExtras(name string) string {
+	if i := strings.Index(name, "["); i >= 0 {
+		return strings.TrimSpace(name[:i])
+	}
+	return name
 }
 
 // --- pyproject.toml parser ---
@@ -139,6 +161,10 @@ func parsePyprojectTomlBytes(data []byte) ([]Package, error) {
 
 	// PEP 621: [project.dependencies] — list of requirement strings like "requests>=2.0"
 	for _, req := range proj.Project.Dependencies {
+		// Strip environment markers
+		if i := strings.Index(req, ";"); i >= 0 {
+			req = strings.TrimSpace(req[:i])
+		}
 		name, constraint := splitRequirement(req)
 		if name == "" {
 			continue
