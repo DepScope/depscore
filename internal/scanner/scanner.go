@@ -20,6 +20,7 @@ import (
 type Options struct {
 	Profile  string
 	MaxFiles int
+	NoCVE    bool // skip CVE scanning (OSV queries)
 }
 
 // ScanURL resolves a remote URL, parses manifests, fetches registry data,
@@ -66,7 +67,7 @@ func ScanURL(ctx context.Context, url string, opts Options) (*core.ScanResult, e
 		pkgs = append(pkgs, parsed...)
 	}
 
-	return scorePipeline(pkgs, cfg)
+	return scorePipeline(pkgs, cfg, opts.NoCVE)
 }
 
 // ScanDir scans a local directory. If multiple ecosystems are detected
@@ -93,12 +94,12 @@ func ScanDir(dir string, opts Options) (*core.ScanResult, error) {
 		return nil, fmt.Errorf("no packages found in %s", dir)
 	}
 
-	return scorePipeline(allPkgs, cfg)
+	return scorePipeline(allPkgs, cfg, opts.NoCVE)
 }
 
 // scorePipeline fetches registry data, scores each package, and propagates
 // transitive risk. It is shared by ScanURL and ScanDir.
-func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult, error) {
+func scorePipeline(pkgs []manifest.Package, cfg config.Config, noCVE bool) (*core.ScanResult, error) {
 	fetchers := registry.FetchersByEcosystem{
 		"PyPI":       registry.NewPyPIClient(),
 		"npm":        registry.NewNPMClient(),
@@ -108,6 +109,12 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 	}
 
 	fetchResults := registry.FetchAll(pkgs, fetchers, int64(cfg.Concurrency))
+
+	// Create OSV client for CVE scanning (unless disabled)
+	var osvClient *vuln.OSVClient
+	if !noCVE {
+		osvClient = vuln.NewOSVClient()
+	}
 
 	// Create VCS client for repo health lookups
 	var vcsClient vcs.Client
@@ -121,8 +128,7 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 	// Cache VCS lookups by repo URL to avoid redundant API calls
 	repoCache := make(map[string]*vcs.RepoInfo)
 
-	// Query OSV for vulnerabilities
-	osvClient := vuln.NewOSVClient()
+	// (osvClient created above, nil if noCVE)
 
 	scored := make([]core.PackageResult, 0, len(pkgs))
 	for _, pkg := range pkgs {
@@ -147,8 +153,8 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 
 		result := core.Score(pkg, fr, repoInfo, cfg.Weights)
 
-		// Lookup CVEs via OSV
-		if pkg.ResolvedVersion != "" {
+		// Lookup CVEs via OSV (skip if --no-cve)
+		if osvClient != nil && pkg.ResolvedVersion != "" {
 			findings, err := osvClient.Query(pkg.Ecosystem.String(), pkg.Name, pkg.ResolvedVersion)
 			if err != nil {
 				log.Printf("OSV query failed for %s@%s: %v", pkg.Name, pkg.ResolvedVersion, err)
@@ -168,6 +174,9 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 				}
 			}
 		}
+
+		// Apply CVE penalty to the reputation score
+		core.ApplyCVEPenalty(&result)
 
 		scored = append(scored, result)
 	}
