@@ -36,7 +36,7 @@
     {
       "ecosystem": "go",
       "count": 50,
-      "avg": 65.4,
+      "avg": 65.6,
       "min": 52,
       "max": 74,
       "low": 0,

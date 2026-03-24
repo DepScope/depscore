@@ -1,0 +1,486 @@
+{
+  "profile": "enterprise",
+  "pass_threshold": 70,
+  "passed": false,
+  "direct_deps": 0,
+  "transitive_deps": 9,
+  "packages": [
+    {
+      "name": "anyhow",
+      "version": "1.0.100",
+      "ecosystem": "rust",
+      "constraint_type": "minor",
+      "depth": 2,
+      "own_score": 61,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "anyhow",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "anyhow",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (37 open of 37 total)"
+        },
+        {
+          "package": "anyhow",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        },
+        {
+          "package": "anyhow",
+          "severity": "LOW",
+          "message": "minor-level version constraint (allows minor+patch updates)"
+        }
+      ]
+    },
+    {
+      "name": "bstr",
+      "version": "1.12.0",
+      "ecosystem": "rust",
+      "constraint_type": "minor",
+      "depth": 2,
+      "own_score": 61,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 7,
+      "issues": [
+        {
+          "package": "bstr",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "bstr",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (35 open of 35 total)"
+        },
+        {
+          "package": "bstr",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        },
+        {
+          "package": "bstr",
+          "severity": "LOW",
+          "message": "minor-level version constraint (allows minor+patch updates)"
+        }
+      ]
+    },
+    {
+      "name": "log",
+      "version": "0.4.28",
+      "ecosystem": "rust",
+      "constraint_type": "minor",
+      "depth": 2,
+      "own_score": 64,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 9,
+      "issues": [
+        {
+          "package": "log",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "log",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (21 open of 21 total)"
+        },
+        {
+          "package": "log",
+          "severity": "LOW",
+          "message": "minor-level version constraint (allows minor+patch updates)"
+        }
+      ]
+    },
+    {
+      "name": "termcolor",
+      "version": "1.4.1",
+      "ecosystem": "rust",
+      "constraint_type": "minor",
+      "depth": 2,
+      "own_score": 44,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 4,
+      "issues": [
+        {
+          "package": "termcolor",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "termcolor",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (14 open of 14 total)"
+        },
+        {
+          "package": "termcolor",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        },
+        {
+          "package": "termcolor",
+          "severity": "LOW",
+          "message": "minor-level version constraint (allows minor+patch updates)"
+        }
+      ]
+    },
+    {
+      "name": "grep",
+      "version": "",
+      "ecosystem": "rust",
+      "constraint_type": "minor",
+      "depth": 2,
+      "own_score": 59,
+      "transitive_risk_score": 49,
+      "own_risk": "HIGH",
+      "transitive_risk": "HIGH",
+      "depends_on_count": 1,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "grep",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "grep",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (133 open of 133 total)"
+        },
+        {
+          "package": "grep",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        },
+        {
+          "package": "grep",
+          "severity": "LOW",
+          "message": "minor-level version constraint (allows minor+patch updates)"
+        }
+      ]
+    },
+    {
+      "name": "ignore",
+      "version": "",
+      "ecosystem": "rust",
+      "constraint_type": "minor",
+      "depth": 2,
+      "own_score": 62,
+      "transitive_risk_score": 66,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "MEDIUM",
+      "depends_on_count": 2,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "ignore",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "ignore",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (133 open of 133 total)"
+        },
+        {
+          "package": "ignore",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        },
+        {
+          "package": "ignore",
+          "severity": "LOW",
+          "message": "minor-level version constraint (allows minor+patch updates)"
+        }
+      ]
+    },
+    {
+      "name": "lexopt",
+      "version": "0.3.1",
+      "ecosystem": "rust",
+      "constraint_type": "minor",
+      "depth": 2,
+      "own_score": 58,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "lexopt",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "lexopt",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (3 open of 3 total)"
+        },
+        {
+          "package": "lexopt",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        },
+        {
+          "package": "lexopt",
+          "severity": "LOW",
+          "message": "minor-level version constraint (allows minor+patch updates)"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0.145",
+      "ecosystem": "rust",
+      "constraint_type": "minor",
+      "depth": 2,
+      "own_score": 68,
+      "transitive_risk_score": 100,
+      "own_risk": "MEDIUM",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 3,
+      "issues": [
+        {
+          "package": "serde_json",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "serde_json",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (224 open of 224 total)"
+        },
+        {
+          "package": "serde_json",
+          "severity": "LOW",
+          "message": "minor-level version constraint (allows minor+patch updates)"
+        }
+      ]
+    },
+    {
+      "name": "textwrap",
+      "version": "0.16.2",
+      "ecosystem": "rust",
+      "constraint_type": "minor",
+      "depth": 2,
+      "own_score": 57,
+      "transitive_risk_score": 100,
+      "own_risk": "HIGH",
+      "transitive_risk": "LOW",
+      "depends_on_count": 0,
+      "depended_on_count": 1,
+      "issues": [
+        {
+          "package": "textwrap",
+          "severity": "MEDIUM",
+          "message": "no maintainer information available"
+        },
+        {
+          "package": "textwrap",
+          "severity": "MEDIUM",
+          "message": "high open issue ratio: 100% (35 open of 35 total)"
+        },
+        {
+          "package": "textwrap",
+          "severity": "LOW",
+          "message": "no organization backing; individually maintained"
+        },
+        {
+          "package": "textwrap",
+          "severity": "LOW",
+          "message": "minor-level version constraint (allows minor+patch updates)"
+        }
+      ]
+    }
+  ],
+  "all_issues": [
+    {
+      "package": "anyhow",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "anyhow",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (37 open of 37 total)"
+    },
+    {
+      "package": "anyhow",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "anyhow",
+      "severity": "LOW",
+      "message": "minor-level version constraint (allows minor+patch updates)"
+    },
+    {
+      "package": "bstr",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "bstr",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (35 open of 35 total)"
+    },
+    {
+      "package": "bstr",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "bstr",
+      "severity": "LOW",
+      "message": "minor-level version constraint (allows minor+patch updates)"
+    },
+    {
+      "package": "log",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "log",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (21 open of 21 total)"
+    },
+    {
+      "package": "log",
+      "severity": "LOW",
+      "message": "minor-level version constraint (allows minor+patch updates)"
+    },
+    {
+      "package": "termcolor",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "termcolor",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (14 open of 14 total)"
+    },
+    {
+      "package": "termcolor",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "termcolor",
+      "severity": "LOW",
+      "message": "minor-level version constraint (allows minor+patch updates)"
+    },
+    {
+      "package": "grep",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "grep",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (133 open of 133 total)"
+    },
+    {
+      "package": "grep",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "grep",
+      "severity": "LOW",
+      "message": "minor-level version constraint (allows minor+patch updates)"
+    },
+    {
+      "package": "ignore",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "ignore",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (133 open of 133 total)"
+    },
+    {
+      "package": "ignore",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "ignore",
+      "severity": "LOW",
+      "message": "minor-level version constraint (allows minor+patch updates)"
+    },
+    {
+      "package": "lexopt",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "lexopt",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (3 open of 3 total)"
+    },
+    {
+      "package": "lexopt",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "lexopt",
+      "severity": "LOW",
+      "message": "minor-level version constraint (allows minor+patch updates)"
+    },
+    {
+      "package": "serde_json",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "serde_json",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (224 open of 224 total)"
+    },
+    {
+      "package": "serde_json",
+      "severity": "LOW",
+      "message": "minor-level version constraint (allows minor+patch updates)"
+    },
+    {
+      "package": "textwrap",
+      "severity": "MEDIUM",
+      "message": "no maintainer information available"
+    },
+    {
+      "package": "textwrap",
+      "severity": "MEDIUM",
+      "message": "high open issue ratio: 100% (35 open of 35 total)"
+    },
+    {
+      "package": "textwrap",
+      "severity": "LOW",
+      "message": "no organization backing; individually maintained"
+    },
+    {
+      "package": "textwrap",
+      "severity": "LOW",
+      "message": "minor-level version constraint (allows minor+patch updates)"
+    }
+  ]
+}
