@@ -63,6 +63,33 @@ func (c *NPMClient) Fetch(name, version string) (*PackageInfo, error) {
 	return raw.toPackageInfo(version), nil
 }
 
+// FetchDependencies retrieves the dependency list for an npm package version.
+func (c *NPMClient) FetchDependencies(name, version string) ([]Dependency, error) {
+	apiURL := fmt.Sprintf("%s/%s/%s", c.baseURL, name, version)
+	resp, err := c.httpClient.Get(apiURL) //nolint:noctx
+	if err != nil {
+		return nil, fmt.Errorf("npm: GET %s: %w", apiURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("npm: GET %s returned %d", apiURL, resp.StatusCode)
+	}
+
+	var raw struct {
+		Dependencies map[string]string `json:"dependencies"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, fmt.Errorf("npm: decode deps for %s@%s: %w", name, version, err)
+	}
+
+	var deps []Dependency
+	for depName, constraint := range raw.Dependencies {
+		deps = append(deps, Dependency{Name: depName, Constraint: constraint})
+	}
+	return deps, nil
+}
+
 // ---- raw JSON shapes -------------------------------------------------------
 
 type npmResponse struct {
