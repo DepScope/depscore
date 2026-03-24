@@ -6,14 +6,6 @@ import (
 	"strings"
 )
 
-// ProjectInfo holds the location of a discovered project and the manifest
-// files found within it. This struct will be superseded by the definition in
-// walker.go once that file is created.
-type ProjectInfo struct {
-	Dir           string
-	ManifestFiles []string
-}
-
 type MatchResult struct {
 	Files   []string
 	matched bool
