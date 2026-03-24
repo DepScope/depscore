@@ -211,4 +211,3 @@ func parseCargoLockBytes(data []byte, excludeNames map[string]bool) (resolved ma
 	}
 	return resolved, parents, nil
 }
-

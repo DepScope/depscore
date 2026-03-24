@@ -1,6 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: depscope - Supply chain reputation scoring
 
+Parameters:
+  DeployBucket:
+    Type: String
+    Description: S3 bucket containing lambda.zip
+
 Resources:
   ScanTable:
     Type: AWS::DynamoDB::Table
@@ -57,7 +62,7 @@ Resources:
         Variables:
           DYNAMODB_TABLE: !Ref ScanTable
       Code:
-        S3Bucket: !Sub 'depscope-deploy-${AWS::AccountId}'
+        S3Bucket: !Ref DeployBucket
         S3Key: lambda.zip
 
   FunctionUrl:

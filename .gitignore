@@ -1,3 +1,13 @@
+# Build artifacts
+bin/
+bootstrap
+lambda.zip
+/depscope
+
+# IDE / tools
 .worktrees/
 .claude/
 .playwright-mcp/
+
+# OS
+.DS_Store
