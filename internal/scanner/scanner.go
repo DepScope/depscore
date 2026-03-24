@@ -175,11 +175,17 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 	depsMap := manifest.BuildDepsMap(pkgs)
 	scored = core.Propagate(scored, depsMap)
 
-	// Populate DependsOn and counts on each PackageResult
+	// Compute actual graph depths (BFS from root packages)
+	graphDepths := computeGraphDepths(scored, depsMap)
+
+	// Populate DependsOn, counts, and actual depth on each PackageResult
 	for i := range scored {
 		deps := depsMap[scored[i].Name]
 		scored[i].DependsOn = deps
 		scored[i].DependsOnCount = len(deps)
+		if d, ok := graphDepths[scored[i].Name]; ok {
+			scored[i].Depth = d
+		}
 	}
 	// Build reverse map for DependedOnCount
 	dependedOn := make(map[string]int)
@@ -231,6 +237,51 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config) (*core.ScanResult
 		Suspicious:     suspicious,
 	}
 	return result, nil
+}
+
+// computeGraphDepths does BFS from root packages (depth 1) to compute
+// actual graph depth for each package. Root packages are those not
+// depended on by any other package.
+func computeGraphDepths(results []core.PackageResult, depsMap map[string][]string) map[string]int {
+	// Find root packages (not a dependency of anything)
+	isDep := make(map[string]bool)
+	for _, deps := range depsMap {
+		for _, d := range deps {
+			isDep[d] = true
+		}
+	}
+
+	depths := make(map[string]int)
+	queue := []string{}
+
+	for _, r := range results {
+		if !isDep[r.Name] {
+			depths[r.Name] = 1
+			queue = append(queue, r.Name)
+		}
+	}
+
+	// BFS
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		childDepth := depths[name] + 1
+		for _, child := range depsMap[name] {
+			if _, seen := depths[child]; !seen {
+				depths[child] = childDepth
+				queue = append(queue, child)
+			}
+		}
+	}
+
+	// Any unreachable packages get depth 1
+	for _, r := range results {
+		if _, ok := depths[r.Name]; !ok {
+			depths[r.Name] = 1
+		}
+	}
+
+	return depths
 }
 
 // groupByDirectory groups ManifestFiles by their parent directory.
