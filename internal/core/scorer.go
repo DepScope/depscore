@@ -117,12 +117,23 @@ func Score(pkg manifest.Package, fetchResult *registry.FetchResult, repoInfo *vc
 		orgScore, orgIssues = FactorOrgBacking(repoInfo, info)
 		healthScore, healthIssues = FactorRepoHealth(repoInfo)
 	} else {
-		issueScore = 50
-		orgScore = 50
-		healthScore = 50
-		healthIssues = []Issue{{Severity: SeverityInfo, Message: "repository health not checked (no VCS data)"}}
-		issueIssues = []Issue{{Severity: SeverityInfo, Message: "open issue ratio not checked (no VCS data)"}}
-		orgIssues = []Issue{{Severity: SeverityInfo, Message: "organization backing not checked (no VCS data)"}}
+		// Smarter defaults: if we have a source repo URL, assume reasonably healthy.
+		// If no source repo, assume worse.
+		if info.SourceRepoURL != "" {
+			issueScore = 70
+			orgScore = 65
+			healthScore = 70
+			healthIssues = []Issue{{Severity: SeverityInfo, Message: "repository health estimated (source repo linked but not checked)"}}
+			issueIssues = []Issue{{Severity: SeverityInfo, Message: "open issue ratio estimated (source repo linked but not checked)"}}
+			orgIssues = []Issue{{Severity: SeverityInfo, Message: "organization backing estimated (source repo linked but not checked)"}}
+		} else {
+			issueScore = 40
+			orgScore = 30
+			healthScore = 40
+			healthIssues = []Issue{{Severity: SeverityMedium, Message: "repository health unknown (no source repo linked)"}}
+			issueIssues = []Issue{{Severity: SeverityInfo, Message: "open issue ratio unknown (no source repo linked)"}}
+			orgIssues = []Issue{{Severity: SeverityMedium, Message: "organization backing unknown (no source repo linked)"}}
+		}
 	}
 
 	// Build weighted factor list.

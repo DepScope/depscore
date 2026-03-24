@@ -35,15 +35,25 @@ func (c *GoProxyClient) Ecosystem() string { return "Go" }
 // name is the module path (e.g. "github.com/gin-gonic/gin"), version must be
 // a semver string prefixed with "v" (e.g. "v1.8.0").
 func (c *GoProxyClient) Fetch(name, version string) (*PackageInfo, error) {
-	url := fmt.Sprintf("%s/%s/@v/%s.info", c.baseURL, name, version)
-	resp, err := c.httpClient.Get(url) //nolint:noctx
+	// If no version specified, fetch @latest
+	if version == "" {
+		version = "latest"
+	}
+
+	var apiURL string
+	if version == "latest" {
+		apiURL = fmt.Sprintf("%s/%s/@latest", c.baseURL, name)
+	} else {
+		apiURL = fmt.Sprintf("%s/%s/@v/%s.info", c.baseURL, name, version)
+	}
+	resp, err := c.httpClient.Get(apiURL) //nolint:noctx
 	if err != nil {
-		return nil, fmt.Errorf("goproxy: GET %s: %w", url, err)
+		return nil, fmt.Errorf("goproxy: GET %s: %w", apiURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("goproxy: GET %s returned %d", url, resp.StatusCode)
+		return nil, fmt.Errorf("goproxy: GET %s returned %d", apiURL, resp.StatusCode)
 	}
 
 	var raw goProxyInfo

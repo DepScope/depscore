@@ -32,21 +32,32 @@ func NewNPMClient(opts ...Option) *NPMClient {
 func (c *NPMClient) Ecosystem() string { return "npm" }
 
 // Fetch retrieves package info for the given name/version pair.
+// When version is empty, fetches the full package doc and uses the latest version.
 func (c *NPMClient) Fetch(name, version string) (*PackageInfo, error) {
-	url := fmt.Sprintf("%s/%s/%s", c.baseURL, name, version)
-	resp, err := c.httpClient.Get(url) //nolint:noctx
+	var apiURL string
+	if version != "" {
+		apiURL = fmt.Sprintf("%s/%s/%s", c.baseURL, name, version)
+	} else {
+		apiURL = fmt.Sprintf("%s/%s", c.baseURL, name)
+	}
+	resp, err := c.httpClient.Get(apiURL) //nolint:noctx
 	if err != nil {
-		return nil, fmt.Errorf("npm: GET %s: %w", url, err)
+		return nil, fmt.Errorf("npm: GET %s: %w", apiURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("npm: GET %s returned %d", url, resp.StatusCode)
+		return nil, fmt.Errorf("npm: GET %s returned %d", apiURL, resp.StatusCode)
 	}
 
 	var raw npmResponse
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return nil, fmt.Errorf("npm: decode %s: %w", name, err)
+	}
+
+	// If no version specified, use dist-tags.latest or the version from the response
+	if version == "" && raw.DistTags.Latest != "" {
+		version = raw.DistTags.Latest
 	}
 
 	return raw.toPackageInfo(version), nil
@@ -60,6 +71,11 @@ type npmResponse struct {
 	Maintainers []npmMaintainer   `json:"maintainers"`
 	Repository  npmRepository     `json:"repository"`
 	Time        map[string]string `json:"time"`
+	DistTags    npmDistTags       `json:"dist-tags"`
+}
+
+type npmDistTags struct {
+	Latest string `json:"latest"`
 }
 
 type npmMaintainer struct {
@@ -84,11 +100,28 @@ func (r npmResponse) toPackageInfo(requestedVersion string) *PackageInfo {
 	repoURL = strings.TrimSuffix(repoURL, ".git")
 	info.SourceRepoURL = repoURL
 
-	// LastReleaseAt: look up publish time for this version.
+	// LastReleaseAt: try version-specific time, then "modified"
+	var latest time.Time
 	if ts, ok := r.Time[requestedVersion]; ok && ts != "" {
-		t, err := time.Parse(time.RFC3339Nano, ts)
-		if err == nil {
-			info.LastReleaseAt = t
+		if t, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+			latest = t
+		}
+	}
+	if latest.IsZero() {
+		if ts, ok := r.Time["modified"]; ok && ts != "" {
+			if t, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+				latest = t
+			}
+		}
+	}
+	if !latest.IsZero() {
+		info.LastReleaseAt = latest
+	}
+
+	// ReleaseCount: count version entries in time map (exclude "created"/"modified")
+	for k := range r.Time {
+		if k != "created" && k != "modified" {
+			info.ReleaseCount++
 		}
 	}
 

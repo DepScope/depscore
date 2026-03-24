@@ -73,8 +73,11 @@ type cratesMeta struct {
 }
 
 type cratesVersion struct {
-	Num       string `json:"num"`
-	UpdatedAt string `json:"updated_at"`
+	Num        string `json:"num"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
+	Downloads  int64  `json:"downloads"`
+	Yanked     bool   `json:"yanked"`
 }
 
 func (r cratesResponse) toPackageInfo(requestedVersion string) *PackageInfo {
@@ -87,13 +90,46 @@ func (r cratesResponse) toPackageInfo(requestedVersion string) *PackageInfo {
 		ReleaseCount:   len(r.Versions),
 	}
 
-	// Find UpdatedAt for the requested version.
-	for _, v := range r.Versions {
-		if v.Num == requestedVersion {
-			if t, err := time.Parse(time.RFC3339, v.UpdatedAt); err == nil {
-				info.LastReleaseAt = t
+	// Estimate monthly downloads from total (rough: total / age in months)
+	if len(r.Versions) > 0 {
+		// Find oldest and newest version to calculate age
+		var oldest, newest time.Time
+		for _, v := range r.Versions {
+			t, err := time.Parse(time.RFC3339, v.CreatedAt)
+			if err != nil {
+				continue
 			}
-			break
+			if oldest.IsZero() || t.Before(oldest) {
+				oldest = t
+			}
+			if newest.IsZero() || t.After(newest) {
+				newest = t
+			}
+		}
+		if !oldest.IsZero() {
+			info.FirstReleaseAt = oldest
+		}
+		if !newest.IsZero() {
+			info.LastReleaseAt = newest
+		}
+		// Estimate monthly from total
+		if !oldest.IsZero() {
+			months := time.Since(oldest).Hours() / (24 * 30)
+			if months > 0 {
+				info.MonthlyDownloads = int64(float64(r.Crate.Downloads) / months)
+			}
+		}
+	}
+
+	// Find specific version's release date if requested
+	if requestedVersion != "" {
+		for _, v := range r.Versions {
+			if v.Num == requestedVersion {
+				if t, err := time.Parse(time.RFC3339, v.CreatedAt); err == nil {
+					info.LastReleaseAt = t
+				}
+				break
+			}
 		}
 	}
 
