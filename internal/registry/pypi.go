@@ -102,6 +102,7 @@ type pypiResponse struct {
 
 type pypiInfo struct {
 	Name            string            `json:"name"`
+	Version         string            `json:"version"`
 	Author          string            `json:"author"`
 	AuthorEmail     string            `json:"author_email"`
 	Maintainer      string            `json:"maintainer"`
@@ -116,9 +117,13 @@ type pypiReleaseFile struct {
 }
 
 func (r pypiResponse) toPackageInfo(requestedVersion string) *PackageInfo {
+	version := requestedVersion
+	if version == "" {
+		version = r.Info.Version // latest version from PyPI
+	}
 	info := &PackageInfo{
 		Name:      r.Info.Name,
-		Version:   requestedVersion,
+		Version:   version,
 		Ecosystem: "PyPI",
 	}
 

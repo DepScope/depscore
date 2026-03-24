@@ -67,9 +67,11 @@ type cratesResponse struct {
 }
 
 type cratesMeta struct {
-	Name       string `json:"name"`
-	Downloads  int64  `json:"downloads"`
-	Repository string `json:"repository"`
+	Name              string `json:"name"`
+	Downloads         int64  `json:"downloads"`
+	Repository        string `json:"repository"`
+	NewestVersion     string `json:"newest_version"`
+	MaxStableVersion  string `json:"max_stable_version"`
 }
 
 type cratesVersion struct {
@@ -81,9 +83,16 @@ type cratesVersion struct {
 }
 
 func (r cratesResponse) toPackageInfo(requestedVersion string) *PackageInfo {
+	version := requestedVersion
+	if version == "" {
+		version = r.Crate.MaxStableVersion
+		if version == "" {
+			version = r.Crate.NewestVersion
+		}
+	}
 	info := &PackageInfo{
 		Name:           r.Crate.Name,
-		Version:        requestedVersion,
+		Version:        version,
 		Ecosystem:      "crates.io",
 		TotalDownloads: r.Crate.Downloads,
 		SourceRepoURL:  r.Crate.Repository,
