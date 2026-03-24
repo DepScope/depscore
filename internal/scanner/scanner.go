@@ -154,8 +154,14 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config, noCVE bool) (*cor
 		result := core.Score(pkg, fr, repoInfo, cfg.Weights)
 
 		// Lookup CVEs via OSV (skip if --no-cve)
-		if osvClient != nil && pkg.ResolvedVersion != "" {
-			findings, err := osvClient.Query(pkg.Ecosystem.String(), pkg.Name, pkg.ResolvedVersion)
+		// If no resolved version, use the version from registry fetch (latest)
+		cveVersion := pkg.ResolvedVersion
+		if cveVersion == "" && fr != nil && fr.Info != nil && fr.Info.Version != "" {
+			cveVersion = fr.Info.Version
+			result.Version = fr.Info.Version // update the result with resolved version
+		}
+		if osvClient != nil && cveVersion != "" {
+			findings, err := osvClient.Query(pkg.Ecosystem.String(), pkg.Name, cveVersion)
 			if err != nil {
 				log.Printf("OSV query failed for %s@%s: %v", pkg.Name, pkg.ResolvedVersion, err)
 			}
@@ -214,6 +220,24 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config, noCVE bool) (*cor
 		} else {
 			transitiveCount++
 		}
+	}
+
+	// Warn if only direct deps found (no lockfile = no transitive visibility)
+	if transitiveCount == 0 && directCount > 0 {
+		log.Printf("warning: no lockfile found — only %d direct dependencies scanned. "+
+			"Transitive dependencies are not visible. "+
+			"Add a lockfile (uv.lock, poetry.lock, Cargo.lock, package-lock.json, composer.lock) for full tree analysis.", directCount)
+	}
+
+	// Warn about packages without resolved versions (no CVE scanning possible)
+	noVersion := 0
+	for _, r := range scored {
+		if r.Version == "" {
+			noVersion++
+		}
+	}
+	if noVersion > 0 {
+		log.Printf("warning: %d/%d packages have no resolved version — CVE scanning limited. Use a lockfile for version-specific CVE checks.", noVersion, len(scored))
 	}
 
 	var allIssues []core.Issue
