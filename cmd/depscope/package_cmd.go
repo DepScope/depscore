@@ -61,14 +61,14 @@ func runPackageCheck(cmd *cobra.Command, args []string) error {
 	cfg := config.Enterprise()
 	result := core.Score(pkg, fr, nil, cfg.Weights)
 
-	fmt.Fprintf(os.Stdout, "Package:  %s@%s\n", result.Name, result.Version)
-	fmt.Fprintf(os.Stdout, "Score:    %d\n", result.OwnScore)
-	fmt.Fprintf(os.Stdout, "Risk:     %s\n", result.OwnRisk)
+	fmt.Fprintf(os.Stdout, "Package:  %s@%s\n", result.Name, result.Version) //nolint:errcheck
+	fmt.Fprintf(os.Stdout, "Score:    %d\n", result.OwnScore)              //nolint:errcheck
+	fmt.Fprintf(os.Stdout, "Risk:     %s\n", result.OwnRisk)               //nolint:errcheck
 
 	if len(result.Issues) > 0 {
-		fmt.Fprintln(os.Stdout, "Issues:")
+		fmt.Fprintln(os.Stdout, "Issues:") //nolint:errcheck
 		for _, iss := range result.Issues {
-			fmt.Fprintf(os.Stdout, "  [%s] %s\n", iss.Severity, iss.Message)
+			fmt.Fprintf(os.Stdout, "  [%s] %s\n", iss.Severity, iss.Message) //nolint:errcheck
 		}
 	}
 

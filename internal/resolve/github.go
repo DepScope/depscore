@@ -160,7 +160,7 @@ func (r *GitHubResolver) getJSON(ctx context.Context, url string, target interfa
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB cap for error bodies

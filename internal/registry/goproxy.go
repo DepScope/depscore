@@ -50,7 +50,7 @@ func (c *GoProxyClient) Fetch(name, version string) (*PackageInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("goproxy: GET %s: %w", apiURL, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("goproxy: GET %s returned %d", apiURL, resp.StatusCode)

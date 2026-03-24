@@ -37,8 +37,8 @@ func runCacheStatus(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("cache status: %w", err)
 	}
-	fmt.Fprintf(os.Stdout, "Entries: %d\n", count)
-	fmt.Fprintf(os.Stdout, "Size:    %d bytes\n", bytes)
+	fmt.Fprintf(os.Stdout, "Entries: %d\n", count)    //nolint:errcheck
+	fmt.Fprintf(os.Stdout, "Size:    %d bytes\n", bytes) //nolint:errcheck
 	return nil
 }
 
@@ -47,6 +47,6 @@ func runCacheClear(_ *cobra.Command, _ []string) error {
 	if err := dc.Clear(); err != nil {
 		return fmt.Errorf("cache clear: %w", err)
 	}
-	fmt.Fprintln(os.Stdout, "Cache cleared.")
+	fmt.Fprintln(os.Stdout, "Cache cleared.") //nolint:errcheck
 	return nil
 }

@@ -42,9 +42,83 @@ That's not a vulnerability. That's a **supply chain risk** — and it's the kind
 - **CVE scanning** — queries OSV.dev for known vulnerabilities on every package
 - **Supply chain anomaly detection** — flags suspicious patterns (new+popular, dormant spike, no source repo)
 - **Remote scanning** — scan GitHub/GitLab repos directly via API without cloning
+- **Incident response discovery** — find every project affected by a compromised package across your entire filesystem
 - **Multiple output formats** — text table, JSON, SARIF (for GitHub Security tab)
 - **Web UI** — dark-themed interactive dashboard with click-through package details
 - **Configurable profiles** — hobby, open source, enterprise thresholds
+
+## Incident Response: `discover`
+
+When a package gets compromised or a CVE drops, you need to know which of your projects are affected — fast. The `discover` command searches across your entire filesystem (or a list of repos) and classifies every project's exposure.
+
+```bash
+# "litellm got compromised — where are we exposed?"
+depscope discover litellm --range ">=1.82.7,<1.83.0" ~/repos
+
+# Check a curated list of projects
+depscope discover litellm --range ">=1.82.7,<1.83.0" --list projects.txt
+
+# Air-gapped environment (no registry calls)
+depscope discover litellm --range ">=1.82.7,<1.83.0" --offline ~/repos
+
+# JSON for piping into dashboards
+depscope discover litellm --range ">=1.82.7,<1.83.0" --output json ~/repos
+```
+
+### How it works
+
+**Two-phase pipeline** for speed:
+
+1. **Fast scan** — walks the filesystem, opens every manifest/lockfile, and does a text search for the package name. 95% of projects are eliminated in milliseconds.
+2. **Precise classification** — for matches, parses the actual version constraints and lockfile entries to classify exposure.
+
+### Classification buckets
+
+Every project is placed in one of four buckets:
+
+| Status | Meaning |
+|--------|---------|
+| **Confirmed** | Lockfile pins a version inside the compromised range |
+| **Potentially affected** | Manifest constraint *allows* compromised versions, but no lockfile to confirm |
+| **Unresolvable** | Cannot determine (unpinned, no lockfile, offline mode) |
+| **Safe** | Package found but version is outside the compromised range |
+
+### Example output
+
+```
+$ depscope discover litellm --range ">=1.82.7" --offline ~/
+
+🔴 CONFIRMED AFFECTED (1 project)
+  /home/me/repos/api-service
+    Source: uv.lock
+    Installed: litellm 1.82.8
+    Depth: transitive (via langchain → litellm)
+
+🟡 POTENTIALLY AFFECTED (3 projects)
+  /home/me/repos/ml-pipeline
+    Source: pyproject.toml
+    Constraint: litellm >=1.80
+    Reason: constraint allows compromised versions
+
+🟢 SAFE (2 projects)
+  /home/me/repos/chatbot
+    Source: uv.lock
+    Installed: litellm 1.81.0
+
+Summary: 1 confirmed, 3 potentially, 0 unresolvable, 2 safe (6 total)
+```
+
+### Operating modes
+
+| Mode | Network | Transitive coverage | Use case |
+|------|---------|-------------------|----------|
+| **Default** | Yes (for projects without lockfiles) | Full: lockfile tree + registry resolution | Standard incident response |
+| **`--resolve`** | Yes (extended) | Full + checks current installable version | Higher confidence on "potentially affected" |
+| **`--offline`** | None | Lockfile-only (warns about limitations) | Air-gapped environments |
+
+### Transitive dependency detection
+
+Lockfiles (uv.lock, poetry.lock, package-lock.json, etc.) contain the full resolved dependency tree — so `discover` finds transitive exposure automatically. If a project has no lockfile, the default mode resolves the tree via registry APIs (PyPI, npm) to check for hidden transitive exposure.
 
 ## Quick Start
 
@@ -267,10 +341,10 @@ CMD ["server", "--port", "8080"]
 
 ### Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | All packages pass the threshold |
-| 1 | One or more packages below threshold |
+| Command | Code 0 | Code 1 |
+|---------|--------|--------|
+| `scan` | All packages pass the threshold | One or more packages below threshold |
+| `discover` | No confirmed or potentially affected projects | Confirmed or potentially affected projects found |
 
 ## Configuration
 
@@ -318,11 +392,12 @@ Both matter. Use them together.
 
 ```
 depscope/
-├── cmd/depscope/        # CLI entrypoint (scan, server, package, cache)
+├── cmd/depscope/        # CLI entrypoint (scan, discover, server, package, cache)
 ├── cmd/lambda/          # AWS Lambda adapter
 ├── internal/
 │   ├── scanner/         # Shared scan pipeline
 │   ├── manifest/        # Parsers: Go, Python, Rust, JS, PHP
+│   ├── discover/        # Incident response: find affected projects across filesystem
 │   ├── registry/        # Clients: PyPI, npm, crates.io, Go proxy, Packagist
 │   ├── resolve/         # Remote repo resolvers: GitHub, GitLab, git clone
 │   ├── vcs/             # GitHub repo health client

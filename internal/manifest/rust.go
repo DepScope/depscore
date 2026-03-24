@@ -20,7 +20,7 @@ func (p *RustParser) Ecosystem() Ecosystem { return EcosystemRust }
 func (p *RustParser) ParseFiles(files map[string][]byte) ([]Package, error) {
 	tomlData, ok := files["Cargo.toml"]
 	if !ok {
-		return nil, fmt.Errorf("Cargo.toml not found in files")
+		return nil, fmt.Errorf("cargo.toml not found in files")
 	}
 	constraints, rootName, workspaceMembers, err := parseCargoTomlBytes(tomlData)
 	if err != nil {

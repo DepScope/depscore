@@ -229,7 +229,7 @@ func decompressResult(data []byte) (*core.ScanResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gzip reader: %w", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 	raw, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("gzip read: %w", err)

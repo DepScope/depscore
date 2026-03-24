@@ -116,7 +116,7 @@ func (c *GitHubClient) getJSON(rawURL string, out interface{}) error {
 	if err != nil {
 		return fmt.Errorf("GET %s: %w", rawURL, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("GET %s returned %d", rawURL, resp.StatusCode)

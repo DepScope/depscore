@@ -73,7 +73,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "open %s: %v\n", file, err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	osvClient := vuln.NewOSVClient()
 	var results []CVEResult
@@ -145,5 +145,5 @@ func main() {
 		}
 	}
 
-	json.NewEncoder(os.Stdout).Encode(results)
+	_ = json.NewEncoder(os.Stdout).Encode(results)
 }

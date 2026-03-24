@@ -53,6 +53,80 @@ func (c *PyPIClient) Fetch(name, version string) (*PackageInfo, error) {
 	return raw.toPackageInfo(version), nil
 }
 
+// FetchDependencies retrieves the dependency list for a PyPI package.
+// Uses the requires_dist field from the JSON API response.
+func (c *PyPIClient) FetchDependencies(name, version string) ([]Dependency, error) {
+	apiURL := fmt.Sprintf("%s/pypi/%s/%s/json", c.baseURL, name, version)
+	resp, err := c.httpClient.Get(apiURL) //nolint:noctx
+	if err != nil {
+		return nil, fmt.Errorf("pypi: GET %s: %w", apiURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		// Fall back to unversioned endpoint
+		apiURL = fmt.Sprintf("%s/pypi/%s/json", c.baseURL, name)
+		resp, err = c.httpClient.Get(apiURL) //nolint:noctx
+		if err != nil {
+			return nil, fmt.Errorf("pypi: GET %s: %w", apiURL, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("pypi: GET %s returned %d", apiURL, resp.StatusCode)
+		}
+	}
+
+	var raw struct {
+		Info struct {
+			RequiresDist []string `json:"requires_dist"`
+		} `json:"info"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, fmt.Errorf("pypi: decode deps for %s: %w", name, err)
+	}
+
+	var deps []Dependency
+	for _, req := range raw.Info.RequiresDist {
+		// Skip extras: entries like "pydantic ; extra == \"extended\""
+		if strings.Contains(req, "extra ==") || strings.Contains(req, "extra==") {
+			continue
+		}
+		// Strip environment markers
+		if i := strings.Index(req, ";"); i >= 0 {
+			req = strings.TrimSpace(req[:i])
+		}
+		// Parse "litellm (>=1.82.0)" → name="litellm", constraint=">=1.82.0"
+		depName, constraint := parsePyPIDep(req)
+		if depName == "" {
+			continue
+		}
+		deps = append(deps, Dependency{Name: depName, Constraint: constraint})
+	}
+	return deps, nil
+}
+
+// parsePyPIDep parses a requires_dist entry like "litellm (>=1.82.0)".
+func parsePyPIDep(s string) (name, constraint string) {
+	s = strings.TrimSpace(s)
+	if i := strings.Index(s, "("); i >= 0 {
+		name = strings.TrimSpace(s[:i])
+		end := strings.Index(s, ")")
+		if end > i {
+			constraint = strings.TrimSpace(s[i+1 : end])
+		}
+		return
+	}
+	// No parens — check for space-separated constraint
+	parts := strings.Fields(s)
+	if len(parts) >= 1 {
+		name = parts[0]
+	}
+	if len(parts) >= 2 {
+		constraint = strings.Join(parts[1:], "")
+	}
+	return
+}
+
 // extractSourceURL finds a source/repository URL from project_urls using
 // case-insensitive matching against common key names. Falls back to home_page
 // if it looks like a GitHub/GitLab URL.
