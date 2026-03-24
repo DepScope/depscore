@@ -111,7 +111,7 @@ func ReadProjectList(listFile string, ecosystem string) ([]ProjectInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	var projects []ProjectInfo
 	scanner := bufio.NewScanner(f)

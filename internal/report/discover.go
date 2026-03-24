@@ -10,7 +10,9 @@ import (
 
 // WriteDiscoverText writes a human-readable discover report grouped by status.
 func WriteDiscoverText(w io.Writer, result *discover.DiscoverResult) error {
-	fmt.Fprintf(w, "Package: %s | Range: %s\n\n", result.Package, result.Range)
+	p := func(format string, args ...any) { fmt.Fprintf(w, format, args...) } //nolint:errcheck
+
+	p("Package: %s | Range: %s\n\n", result.Package, result.Range)
 
 	buckets := map[discover.Status][]discover.ProjectMatch{
 		discover.StatusConfirmed:    {},
@@ -38,39 +40,39 @@ func WriteDiscoverText(w io.Writer, result *discover.DiscoverResult) error {
 		if len(matches) == 0 {
 			continue
 		}
-		fmt.Fprintf(w, "%s %s (%d projects)\n", l.icon, l.label, len(matches))
+		p("%s %s (%d projects)\n", l.icon, l.label, len(matches))
 		for _, m := range matches {
-			fmt.Fprintf(w, "  %s\n", m.Project)
-			fmt.Fprintf(w, "    Source: %s\n", m.Source)
+			p("  %s\n", m.Project)
+			p("    Source: %s\n", m.Source)
 			if m.Version != "" {
-				fmt.Fprintf(w, "    Installed: %s %s\n", result.Package, m.Version)
+				p("    Installed: %s %s\n", result.Package, m.Version)
 			}
 			if m.Constraint != "" {
-				fmt.Fprintf(w, "    Constraint: %s %s\n", result.Package, m.Constraint)
+				p("    Constraint: %s %s\n", result.Package, m.Constraint)
 			}
 			if m.Depth != "" {
 				depthStr := m.Depth
 				if len(m.DependencyPath) > 1 {
 					chain := ""
-					for i, p := range m.DependencyPath {
+					for i, dp := range m.DependencyPath {
 						if i > 0 {
 							chain += " \u2192 "
 						}
-						chain += p
+						chain += dp
 					}
 					depthStr += " (via " + chain + ")"
 				}
-				fmt.Fprintf(w, "    Depth: %s\n", depthStr)
+				p("    Depth: %s\n", depthStr)
 			}
 			if m.Reason != "" {
-				fmt.Fprintf(w, "    Reason: %s\n", m.Reason)
+				p("    Reason: %s\n", m.Reason)
 			}
-			fmt.Fprintln(w)
+			p("\n")
 		}
 	}
 
 	s := result.Summary()
-	fmt.Fprintf(w, "Summary: %d confirmed, %d potentially, %d unresolvable, %d safe (%d total)\n",
+	p("Summary: %d confirmed, %d potentially, %d unresolvable, %d safe (%d total)\n",
 		s.Confirmed, s.Potentially, s.Unresolvable, s.Safe, s.Total)
 
 	return nil
