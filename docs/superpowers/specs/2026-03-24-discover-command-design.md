@@ -43,7 +43,7 @@ depscope discover litellm --range ">=1.82.7,<1.83.0" --output json /home/me/repo
 | `--resolve` | false | Additionally check current installable version via registry for unresolved constraints |
 | `--offline` | false | No network calls. Warns that transitive coverage limited to projects with lockfiles |
 | `--output` | `text` | Output format: `text` or `json` |
-| `--ecosystem` | - | Filter to specific ecosystem (`pypi`, `npm`, `crates`, `go`, `packagist`) |
+| `--ecosystem` | - | Filter to specific ecosystem. Accepts: `python`, `npm`, `rust`, `go`, `php` (matching internal `Ecosystem` type constants) |
 | `--max-depth` | 10 | Maximum directory depth for filesystem walk |
 
 ## Output Classification
@@ -146,7 +146,7 @@ For each matched project:
 
 1. **Lockfile exists:** Parse lockfile using existing `internal/manifest` parsers. Extract resolved version and dependency path. Classify with `VersionInRange(resolved, compromisedRange)`.
 
-2. **No lockfile, default mode:** Resolve transitive dependency tree via registry clients. If target package found in tree, extract version and classify. If not found, mark SAFE.
+2. **No lockfile, default mode:** Resolve transitive dependency tree via registry APIs. Each ecosystem exposes dependency data differently — PyPI via `requires_dist` in JSON API, npm via `dependencies` in package metadata, crates.io via `/crates/{name}/{version}/dependencies`, Go proxy via `go.mod` at `/{module}/@v/{version}.mod`, Packagist via `require` in package metadata. New `FetchDependencies(name, version)` methods must be added to each registry client to support this. Walk the tree recursively until the target package is found or the tree is exhausted. If found, extract version and classify. If not found, mark SAFE.
 
 3. **No lockfile, `--offline` mode:** Parse manifest constraint only. If constraint can be evaluated for overlap with compromised range, classify as POTENTIALLY or SAFE. Otherwise, UNRESOLVABLE.
 
@@ -158,11 +158,11 @@ For each matched project:
 |------|---------------|
 | `types.go` | `DiscoverResult`, `ProjectMatch`, `Status` enum (confirmed/potentially/unresolvable/safe) |
 | `discover.go` | Orchestrator: accepts config, runs both phases, returns classified results |
-| `walker.go` | Filesystem walker + project list reader. Reuses ignore patterns from `resolve/filters.go` |
+| `walker.go` | Filesystem walker + project list reader. Reuses ignore patterns from `internal/resolve/filters.go` |
 | `matcher.go` | Phase 1 text search across manifest/lockfile files |
 | `classifier.go` | Phase 2 classification logic: version range comparison + bucket assignment |
 | `version.go` | `VersionInRange()`, `ConstraintOverlaps()`, range parsing. Supports semver and PEP 440 |
-| `resolve.go` | Transitive tree resolution for lockfile-less projects. Wraps existing registry clients |
+| `resolve.go` | Transitive tree resolution for lockfile-less projects. Uses new `FetchDependencies` methods on registry clients to walk dependency trees per-ecosystem |
 
 ### New CLI Command: `cmd/depscope/discover_cmd.go`
 
@@ -173,8 +173,8 @@ Cobra command definition. Flag parsing, validation, calls into `internal/discove
 | Package | What's reused |
 |---------|--------------|
 | `internal/manifest` | All ecosystem parsers for phase 2 lockfile/manifest parsing |
-| `internal/registry` | Registry clients for transitive resolution and `--resolve` checks |
-| `resolve/filters.go` | `MatchesManifest()`, ignored directory list |
+| `internal/registry` | Registry clients for `--resolve` checks. Extended with new `FetchDependencies()` method per ecosystem for transitive tree resolution |
+| `internal/resolve/filters.go` | `MatchesManifest()`, ignored directory list |
 | `internal/cache` | Disk-backed TTL cache for registry and CVE data |
 | `internal/report` | Extended with discover-specific text and JSON formatters |
 
@@ -196,7 +196,7 @@ Standard constraint syntax per ecosystem:
 | Lockfile with resolved version | `VersionInRange(resolved, compromised)` → false | SAFE |
 | Manifest constraint, no lockfile, range evaluable | Constraint overlaps compromised range | POTENTIALLY |
 | Manifest constraint, no lockfile, no overlap | Constraint excludes compromised range | SAFE |
-| Manifest constraint, no lockfile, `--resolve` | Resolve current installable → `VersionInRange()` | CONFIRMED or POTENTIALLY |
+| Manifest constraint, no lockfile, `--resolve` | Resolve current installable → `VersionInRange()` → if in range: CONFIRMED; if not in range but constraint allows it: POTENTIALLY |
 | Transitive dep found via registry resolution | `VersionInRange(resolved, compromised)` → true | CONFIRMED |
 | Transitive dep found via registry resolution | `VersionInRange(resolved, compromised)` → false | SAFE |
 | Unpinned constraint, no lockfile, `--offline` | Cannot determine | UNRESOLVABLE |
