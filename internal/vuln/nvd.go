@@ -71,7 +71,7 @@ func (c *NVDClient) Query(ecosystem, name, version string) ([]Finding, error) {
 	if err != nil {
 		return nil, fmt.Errorf("nvd: GET %s: %w", fullURL, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("nvd: GET %s returned %d", fullURL, resp.StatusCode)

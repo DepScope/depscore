@@ -45,37 +45,37 @@ func WriteText(w io.Writer, result core.ScanResult) error {
 				}
 				chain += name
 			}
-			fmt.Fprintf(w, "  %d. %s [score: %d, %s]\n", i+1, chain, rp.EndScore, rp.EndRisk)
-			fmt.Fprintf(w, "     %s\n", rp.Reason)
+			fmt.Fprintf(w, "  %d. %s [score: %d, %s]\n", i+1, chain, rp.EndScore, rp.EndRisk) //nolint:errcheck
+			fmt.Fprintf(w, "     %s\n", rp.Reason)                                          //nolint:errcheck
 		}
 	}
 
 	// Suspicious indicators: supply chain anomalies
 	if len(result.Suspicious) > 0 {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Supply Chain Warnings:")
+		fmt.Fprintln(w)                          //nolint:errcheck
+		fmt.Fprintln(w, "Supply Chain Warnings:") //nolint:errcheck
 		for _, s := range result.Suspicious {
-			fmt.Fprintf(w, "  [%s] %s: %s\n", s.Severity, s.Package, s.Message)
+			fmt.Fprintf(w, "  [%s] %s: %s\n", s.Severity, s.Package, s.Message) //nolint:errcheck
 		}
 	}
 
 	// Print issues below
 	if len(result.AllIssues) > 0 {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Issues:")
+		fmt.Fprintln(w)           //nolint:errcheck
+		fmt.Fprintln(w, "Issues:") //nolint:errcheck
 		for _, issue := range result.AllIssues {
 			if issue.Severity == core.SeverityInfo {
 				continue // skip INFO in CLI output to reduce noise
 			}
-			fmt.Fprintf(w, "  [%s] %s: %s\n", issue.Severity, issue.Package, issue.Message)
+			fmt.Fprintf(w, "  [%s] %s: %s\n", issue.Severity, issue.Package, issue.Message) //nolint:errcheck
 		}
 	}
 
-	fmt.Fprintln(w)
+	fmt.Fprintln(w)              //nolint:errcheck
 	if result.Passed() {
-		fmt.Fprintln(w, "Result: PASS")
+		fmt.Fprintln(w, "Result: PASS") //nolint:errcheck
 	} else {
-		fmt.Fprintln(w, "Result: FAIL")
+		fmt.Fprintln(w, "Result: FAIL") //nolint:errcheck
 	}
 
 	return nil

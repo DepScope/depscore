@@ -27,18 +27,18 @@ func TestGitLabResolver(t *testing.T) {
 		switch {
 		case strings.Contains(r.URL.Path, "/repository/tree"):
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(treeJSON))
+			_, _ = w.Write([]byte(treeJSON))
 		case strings.Contains(r.URL.Path, "/repository/files/") && strings.HasSuffix(r.URL.Path, "/raw"):
 			w.Header().Set("Content-Type", "text/plain")
 			if strings.Contains(r.URL.Path, "go.mod") {
-				w.Write([]byte(gomodContent))
+				_, _ = w.Write([]byte(gomodContent))
 			} else if strings.Contains(r.URL.Path, "go.sum") {
-				w.Write([]byte(gosumContent))
+				_, _ = w.Write([]byte(gosumContent))
 			}
 		default:
 			// Default branch lookup
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"default_branch": "main"}`))
+			_, _ = w.Write([]byte(`{"default_branch": "main"}`))
 		}
 	}))
 	defer srv.Close()
@@ -73,12 +73,12 @@ func TestGitLabResolverWithRef(t *testing.T) {
 		if strings.Contains(r.URL.Path, "/repository/tree") {
 			capturedRef = r.URL.Query().Get("ref")
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(treeJSON))
+			_, _ = w.Write([]byte(treeJSON))
 		} else if strings.Contains(r.URL.Path, "/repository/files/") {
-			w.Write([]byte(gomodContent))
+			_, _ = w.Write([]byte(gomodContent))
 		} else {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"default_branch": "main"}`))
+			_, _ = w.Write([]byte(`{"default_branch": "main"}`))
 		}
 	}))
 	defer srv.Close()

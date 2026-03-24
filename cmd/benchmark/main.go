@@ -133,5 +133,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %3d %s %s\n", r.Score, r.Risk, name)
 	}
 
-	json.NewEncoder(os.Stdout).Encode(results)
+	_ = json.NewEncoder(os.Stdout).Encode(results)
 }

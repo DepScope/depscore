@@ -61,7 +61,7 @@ func (c *OSVClient) Query(ecosystem, name, version string) ([]Finding, error) {
 	if err != nil {
 		return nil, fmt.Errorf("osv: POST %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("osv: POST %s returned %d", url, resp.StatusCode)

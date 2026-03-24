@@ -54,7 +54,7 @@ func TestGitHubResolver(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/go.sum"):
 			_, _ = w.Write(gosumData)
 		case strings.HasSuffix(r.URL.Path, "/spf13/cobra"):
-			w.Write([]byte(repoResp))
+			_, _ = w.Write([]byte(repoResp))
 		default:
 			http.NotFound(w, r)
 		}
