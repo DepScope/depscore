@@ -265,6 +265,38 @@ func (r *Resolver) fetchContentsFile(ctx context.Context, owner, repo, filename,
 	return &ay, nil
 }
 
+// FetchFileContent fetches the raw content of a file from the GitHub contents API
+// at the given ref (branch, tag, or SHA). Returns the decoded file bytes.
+// Unlike fetchContentsFile, this returns raw bytes rather than an ActionYAML struct.
+func (r *Resolver) FetchFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/contents/%s?ref=%s", r.baseURL, owner, repo, path, ref)
+	body, statusCode, err := r.get(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("404: %s not found in %s/%s@%s", path, owner, repo, ref)
+	}
+	if statusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %d fetching %s", statusCode, path)
+	}
+
+	var cr contentsResponse
+	if err := json.Unmarshal(body, &cr); err != nil {
+		return nil, fmt.Errorf("parse contents response for %s: %w", path, err)
+	}
+
+	if cr.Encoding == "base64" {
+		clean := strings.ReplaceAll(cr.Content, "\n", "")
+		decoded, err := base64.StdEncoding.DecodeString(clean)
+		if err != nil {
+			return nil, fmt.Errorf("base64 decode %s: %w", path, err)
+		}
+		return decoded, nil
+	}
+	return []byte(cr.Content), nil
+}
+
 // get performs an authenticated GET request and returns the body, status code, and error.
 func (r *Resolver) get(ctx context.Context, url string) ([]byte, int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
