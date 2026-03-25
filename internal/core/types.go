@@ -83,6 +83,7 @@ type ScanResult struct {
 	DepsMap         map[string][]string  // package name → direct dependency names
 	RiskPaths       []RiskPath           // worst dependency chains
 	Suspicious      []SuspiciousIndicator // supply chain anomalies
+	Graph any // *graph.Graph — supply chain graph (typed as any to avoid circular import)
 }
 
 func (s ScanResult) Passed() bool {
