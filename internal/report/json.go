@@ -4,22 +4,36 @@ import (
 	"encoding/json"
 	"io"
 
+	"github.com/depscope/depscope/internal/actions"
 	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/graph"
 )
 
 // jsonScanResult is the serialized form of a ScanResult with a 'passed' field.
 type jsonScanResult struct {
-	Profile        string              `json:"profile"`
-	PassThreshold  int                 `json:"pass_threshold"`
-	Passed         bool                `json:"passed"`
-	DirectDeps     int                 `json:"direct_deps"`
-	TransitiveDeps int                 `json:"transitive_deps"`
-	Packages       []jsonPackageResult `json:"packages"`
-	AllIssues      []jsonIssue         `json:"all_issues"`
-	RiskPaths      []jsonRiskPath      `json:"risk_paths,omitempty"`
-	Suspicious     []jsonSuspicious    `json:"suspicious,omitempty"`
-	Graph          *jsonGraph          `json:"graph,omitempty"`
+	Profile         string               `json:"profile"`
+	PassThreshold   int                  `json:"pass_threshold"`
+	Passed          bool                 `json:"passed"`
+	DirectDeps      int                  `json:"direct_deps"`
+	TransitiveDeps  int                  `json:"transitive_deps"`
+	Packages        []jsonPackageResult  `json:"packages"`
+	AllIssues       []jsonIssue          `json:"all_issues"`
+	RiskPaths       []jsonRiskPath       `json:"risk_paths,omitempty"`
+	Suspicious      []jsonSuspicious     `json:"suspicious,omitempty"`
+	Graph           *jsonGraph           `json:"graph,omitempty"`
+	PinningSummary  *jsonPinningSummary  `json:"pinning_summary,omitempty"`
+}
+
+type jsonPinningSummary struct {
+	SHAPinned       int `json:"sha_pinned"`
+	ExactVersion    int `json:"exact_version"`
+	MajorTag        int `json:"major_tag"`
+	Branch          int `json:"branch"`
+	Unpinned        int `json:"unpinned"`
+	FirstParty      int `json:"first_party"`
+	ThirdParty      int `json:"third_party"`
+	ScriptDownloads int `json:"script_downloads"`
+	Total           int `json:"total"`
 }
 
 type jsonGraph struct {
@@ -189,6 +203,22 @@ func WriteJSON(w io.Writer, result core.ScanResult) error {
 				})
 			}
 			out.Graph = jg
+
+			// Include pinning summary only when there are action nodes.
+			if len(g.NodesOfType(graph.NodeAction)) > 0 {
+				ps := actions.ComputePinningSummary(g)
+				out.PinningSummary = &jsonPinningSummary{
+					SHAPinned:       ps.SHAPinned,
+					ExactVersion:    ps.ExactVersion,
+					MajorTag:        ps.MajorTag,
+					Branch:          ps.Branch,
+					Unpinned:        ps.Unpinned,
+					FirstParty:      ps.FirstParty,
+					ThirdParty:      ps.ThirdParty,
+					ScriptDownloads: ps.ScriptDownloads,
+					Total:           ps.Total,
+				}
+			}
 		}
 	}
 
