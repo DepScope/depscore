@@ -42,7 +42,13 @@ That's not a vulnerability. That's a **supply chain risk** — and it's the kind
 - **CVE scanning** — queries OSV.dev for known vulnerabilities on every package
 - **Supply chain anomaly detection** — flags suspicious patterns (new+popular, dormant spike, no source repo)
 - **Remote scanning** — scan GitHub/GitLab repos directly via API without cloning
+- **GitHub Actions scanning** — 5-layer deep analysis of CI/CD workflows: pinning quality, bundled code, transitive action deps
+- **Docker image scanning** — detects unpinned base images and scores official vs third-party images
+- **Script download detection** — flags curl|bash patterns in CI pipelines as CRITICAL risk
+- **Supply chain graph** — models the full dependency graph (packages, repos, actions, Docker images) with 176+ node types
+- **Interactive TUI explorer** — navigate the supply chain graph with tree/flat views, search, filter, inspect, and path tracing
 - **Incident response discovery** — find every project affected by a compromised package across your entire filesystem
+- **Org-wide scanning** — scan all repos in a GitHub organization in one command
 - **Multiple output formats** — text table, JSON, SARIF (for GitHub Security tab)
 - **Web UI** — dark-themed interactive dashboard with click-through package details
 - **Configurable profiles** — hobby, open source, enterprise thresholds
@@ -120,22 +126,142 @@ Summary: 1 confirmed, 3 potentially, 0 unresolvable, 2 safe (6 total)
 
 Lockfiles (uv.lock, poetry.lock, package-lock.json, etc.) contain the full resolved dependency tree — so `discover` finds transitive exposure automatically. If a project has no lockfile, the default mode resolves the tree via registry APIs (PyPI, npm) to check for hidden transitive exposure.
 
+## CI/CD Supply Chain: `scan --only actions`
+
+Your CI pipeline is part of your supply chain. A compromised GitHub Action has the same impact as a compromised package — it runs code in your build environment with access to your secrets.
+
+```bash
+# Scan GitHub Actions in your project
+depscope scan . --only actions
+
+# Scan all repos in your org
+depscope scan --org my-org --only actions
+
+# Full scan: packages + actions + Docker
+depscope scan .
+```
+
+### What it checks
+
+depscope resolves GitHub Actions through **5 layers**:
+
+1. **Workflow parsing** — extracts all `uses:` references, `run:` blocks, container images
+2. **Ref resolution** — resolves tags to immutable SHAs via GitHub API
+3. **action.yml analysis** — determines action type (composite, JavaScript, Docker)
+4. **Bundled code** — scans `package.json` inside JS actions, `Dockerfile` inside Docker actions
+5. **Reusable workflows** — follows `uses: org/repo/.github/workflows/x.yml@ref` references recursively
+
+### Pinning analysis
+
+```
+Pinning Summary (GitHub Actions):
+  SHA-pinned:      0 (0%)
+  Exact version:   0 (0%)
+  Major tag:       4 (80%)  ⚠
+  Branch:          1 (20%)  ⚠⚠
+
+  First-party:    2    Third-party: 3
+  Script downloads: 0
+```
+
+Actions from `actions/*` and `github/*` (first-party) get reduced pinning penalty. Third-party actions pinned to branches are flagged as high risk.
+
+### Hidden dependencies
+
+A typical GitHub Action bundles 20-30 npm packages that are invisible to standard dependency scanners. depscope exposes them:
+
+```
+actions/checkout          bundles 21 npm packages
+actions/setup-go          bundles 24 npm packages
+golangci/golangci-lint    bundles 23 npm packages
+goreleaser-action         bundles 22 npm packages
+```
+
+These are real dependencies in your build pipeline — and nobody audits them.
+
+## Interactive Explorer: `explore`
+
+Navigate your full supply chain graph interactively in the terminal.
+
+```bash
+depscope explore .                    # scan + launch TUI
+depscope explore . --only actions     # actions only
+depscope explore . --no-cve           # skip CVE scanning
+```
+
+![depscope explore tree view](docs/screenshots/explore-tree.png)
+
+### Tree View (default)
+
+Expandable dependency tree showing packages, actions, Docker images, and their relationships. Nodes are color-coded by risk: red (CRITICAL), orange (HIGH), yellow (MEDIUM), green (LOW).
+
+```
+▼ .github/workflows/ci.yml
+  ├── actions/checkout@v4          [MEDIUM] score=61  pin=major_tag ⚠
+  │   ├── @actions/core@1.10.0     [CRITICAL] score=0  (bundled)
+  │   └── @actions/github@5.1.1    [CRITICAL] score=0  (bundled)
+  ├── actions/setup-go@v5          [MEDIUM] score=61  pin=major_tag ⚠
+  └── golangci/lint-action@v7      [HIGH]   score=52  pin=major_tag ⚠
+▼ github.com/spf13/cobra@v1.10.2   [MEDIUM] score=64
+  └── gopkg.in/yaml.v3@v3.0.1      [CRITICAL] score=35
+```
+
+### Flat View (Tab)
+
+All nodes sorted by score — worst first. Quickly find your weakest links.
+
+### Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| `↑↓` / `jk` | Navigate |
+| `Enter` | Expand node (if children) or inspect (if leaf) |
+| `Tab` | Switch between tree and flat view |
+| `/` | Fuzzy search across all nodes |
+| `f` | Filter: All → HIGH+ → CRITICAL only |
+| `i` | Inspect panel with full node details |
+| `p` | Show all paths from root to selected node |
+| `Esc` | Close panel / cancel search |
+| `q` | Quit |
+
+![depscope explore inspect panel](docs/screenshots/explore-inspect.png)
+
+### Inspect Panel
+
+Press `Enter` on a leaf node or `i` on any node to see full details:
+
+- Score breakdown with risk-colored output
+- Transitive risk score
+- Ecosystem, version, constraint type
+- First-party status (for actions)
+- All incoming and outgoing edges
+- Pinning quality and resolved SHA
+
 ## Quick Start
 
 ### CLI
 
 ```bash
-# Scan a local project
+# Scan a local project (packages + actions + Docker)
 depscope scan .
+
+# Scan only Go dependencies
+depscope scan . --only go
+
+# Scan only GitHub Actions
+depscope scan . --only actions
+
+# Scan all repos in an org
+depscope scan --org my-org
 
 # Scan a remote GitHub repo
 depscope scan https://github.com/pallets/flask
 
-# Scan a GitLab repo
-depscope scan https://gitlab.com/org/project
+# Interactive graph explorer
+depscope explore .
 
-# Use a specific profile
-depscope scan . --profile hobby
+# Find projects affected by a compromised package
+depscope discover litellm --range ">=1.82.7,<1.83.0" ~/repos
 
 # JSON output for CI/CD
 depscope scan . --output json
@@ -392,20 +518,23 @@ Both matter. Use them together.
 
 ```
 depscope/
-├── cmd/depscope/        # CLI entrypoint (scan, discover, server, package, cache)
+├── cmd/depscope/        # CLI: scan, discover, explore, server, package, cache
 ├── cmd/lambda/          # AWS Lambda adapter
 ├── internal/
-│   ├── scanner/         # Shared scan pipeline
+│   ├── scanner/         # Scan pipeline + org-wide scanning
+│   ├── graph/           # Supply chain graph: nodes, edges, propagation
+│   ├── actions/         # GitHub Actions: 5-layer scanner, scoring, pinning
 │   ├── manifest/        # Parsers: Go, Python, Rust, JS, PHP
-│   ├── discover/        # Incident response: find affected projects across filesystem
+│   ├── discover/        # Incident response: find affected projects
+│   ├── tui/             # Interactive terminal explorer (bubbletea)
 │   ├── registry/        # Clients: PyPI, npm, crates.io, Go proxy, Packagist
 │   ├── resolve/         # Remote repo resolvers: GitHub, GitLab, git clone
 │   ├── vcs/             # GitHub repo health client
 │   ├── vuln/            # OSV.dev + NVD vulnerability clients
-│   ├── core/            # Scoring engine, propagator, risk paths, suspicious detection
+│   ├── core/            # Scoring engine, risk paths, anomaly detection
 │   ├── config/          # Profiles, weight system, YAML config
-│   ├── cache/           # Disk-backed TTL cache
-│   ├── report/          # Text, JSON, SARIF formatters
+│   ├── cache/           # Multi-tier disk cache (registry, repo, action, Docker)
+│   ├── report/          # Text, JSON, SARIF + pinning summary
 │   ├── server/          # HTTP server + handlers + scan store
 │   └── web/             # Embedded HTML templates + CSS + JS
 ├── infrastructure/      # CloudFormation template
