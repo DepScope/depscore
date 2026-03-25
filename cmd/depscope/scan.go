@@ -21,6 +21,7 @@ func init() {
 	scanCmd.Flags().Bool("verbose", false, "verbose output")
 	scanCmd.Flags().Bool("no-cve", false, "skip CVE scanning (faster, reputation-only)")
 	scanCmd.Flags().StringSlice("only", nil, "filter to specific ecosystems: python, go, rust, npm, php")
+	scanCmd.Flags().String("org", "", "scan all repos in a GitHub organization")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -71,6 +72,40 @@ func runScan(cmd *cobra.Command, args []string) error {
 		MaxFiles: maxFiles,
 		NoCVE:    noCVE,
 		Only:     only,
+	}
+
+	// --org flag: scan all repos in a GitHub org and aggregate results.
+	org, _ := cmd.Flags().GetString("org")
+	if org != "" {
+		results, err := scanner.ScanOrg(cmd.Context(), org, opts)
+		if err != nil {
+			return err
+		}
+		outputFmt, _ := cmd.Flags().GetString("output")
+		anyFailed := false
+		for _, r := range results {
+			switch outputFmt {
+			case "json":
+				if err := report.WriteJSON(os.Stdout, *r); err != nil {
+					return fmt.Errorf("write json: %w", err)
+				}
+			case "sarif":
+				if err := report.WriteSARIF(os.Stdout, *r); err != nil {
+					return fmt.Errorf("write sarif: %w", err)
+				}
+			default:
+				if err := report.WriteText(os.Stdout, *r); err != nil {
+					return fmt.Errorf("write text: %w", err)
+				}
+			}
+			if !r.Passed() {
+				anyFailed = true
+			}
+		}
+		if anyFailed {
+			return exitError{1}
+		}
+		return nil
 	}
 
 	var scanResult *core.ScanResult

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/depscope/depscope/internal/actions"
 	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/graph"
@@ -100,12 +101,25 @@ func ScanDir(dir string, opts Options) (*core.ScanResult, error) {
 		}
 		ecosystems = filtered
 	}
-	if len(ecosystems) == 0 {
+
+	// Separate actions ecosystem from package ecosystems (actions use their own parser)
+	hasActions := false
+	var pkgEcosystems []manifest.Ecosystem
+	for _, eco := range ecosystems {
+		if eco == manifest.EcosystemActions {
+			hasActions = true
+		} else {
+			pkgEcosystems = append(pkgEcosystems, eco)
+		}
+	}
+
+	// If only actions detected and no package ecosystems, run actions-only scan
+	if len(pkgEcosystems) == 0 && !hasActions {
 		return nil, fmt.Errorf("no recognized manifest found in %s", dir)
 	}
 
 	var allPkgs []manifest.Package
-	for _, eco := range ecosystems {
+	for _, eco := range pkgEcosystems {
 		pkgs, err := manifest.ParserFor(eco).Parse(dir)
 		if err != nil {
 			log.Printf("warning: %s parser failed: %v", eco, err)
@@ -114,11 +128,39 @@ func ScanDir(dir string, opts Options) (*core.ScanResult, error) {
 		allPkgs = append(allPkgs, pkgs...)
 	}
 
-	if len(allPkgs) == 0 {
+	// If no packages found but we have actions, build a minimal result for the actions scan
+	if len(allPkgs) == 0 && !hasActions {
 		return nil, fmt.Errorf("no packages found in %s", dir)
 	}
 
-	return scorePipeline(allPkgs, cfg, opts.NoCVE)
+	var result *core.ScanResult
+	if len(allPkgs) > 0 {
+		var err error
+		result, err = scorePipeline(allPkgs, cfg, opts.NoCVE)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Actions-only scan: create minimal result with empty graph
+		g := graph.New()
+		result = &core.ScanResult{
+			Profile:       cfg.Profile,
+			PassThreshold: cfg.PassThreshold,
+			Graph:         g,
+		}
+	}
+
+	// Wire in actions scan if the actions ecosystem was detected
+	if hasActions {
+		resolver := actions.NewResolver(os.Getenv("GITHUB_TOKEN"))
+		if g, ok := result.Graph.(*graph.Graph); ok {
+			if err := actions.ScanWorkflows(context.Background(), dir, resolver, g); err != nil {
+				log.Printf("warning: actions scan: %v", err)
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // scorePipeline fetches registry data, scores each package, and propagates

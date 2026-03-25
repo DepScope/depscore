@@ -10,11 +10,12 @@ import (
 type Ecosystem string
 
 const (
-	EcosystemPython Ecosystem = "python"
-	EcosystemGo     Ecosystem = "go"
-	EcosystemRust   Ecosystem = "rust"
-	EcosystemNPM    Ecosystem = "npm"
-	EcosystemPHP    Ecosystem = "php"
+	EcosystemPython  Ecosystem = "python"
+	EcosystemGo      Ecosystem = "go"
+	EcosystemRust    Ecosystem = "rust"
+	EcosystemNPM     Ecosystem = "npm"
+	EcosystemPHP     Ecosystem = "php"
+	EcosystemActions Ecosystem = "actions"
 )
 
 type ConstraintType string
@@ -81,6 +82,16 @@ func DetectAllEcosystems(dir string) []Ecosystem {
 			}
 		}
 	}
+
+	// Detect GitHub Actions: check if .github/workflows/ directory exists
+	workflowDir := filepath.Join(dir, ".github", "workflows")
+	if info, err := os.Stat(workflowDir); err == nil && info.IsDir() {
+		if !seen[EcosystemActions] {
+			seen[EcosystemActions] = true
+			result = append(result, EcosystemActions)
+		}
+	}
+
 	return result
 }
 
@@ -127,6 +138,8 @@ func (e Ecosystem) String() string {
 		return "npm"
 	case EcosystemPHP:
 		return "Packagist"
+	case EcosystemActions:
+		return "GitHub Actions"
 	default:
 		return string(e)
 	}

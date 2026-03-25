@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/depscope/depscope/internal/actions"
 	"github.com/depscope/depscope/internal/core"
+	"github.com/depscope/depscope/internal/graph"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -68,6 +70,33 @@ func WriteText(w io.Writer, result core.ScanResult) error {
 				continue // skip INFO in CLI output to reduce noise
 			}
 			fmt.Fprintf(w, "  [%s] %s: %s\n", issue.Severity, issue.Package, issue.Message) //nolint:errcheck
+		}
+	}
+
+	// Pinning summary: only show when the graph contains action nodes
+	if result.Graph != nil {
+		if g, ok := result.Graph.(*graph.Graph); ok {
+			if len(g.NodesOfType(graph.NodeAction)) > 0 {
+				ps := actions.ComputePinningSummary(g)
+				fmt.Fprintln(w)                                                     //nolint:errcheck
+				fmt.Fprintln(w, "Pinning Summary (GitHub Actions):")                //nolint:errcheck
+				total := ps.Total
+				pct := func(n int) int {
+					if total == 0 {
+						return 0
+					}
+					return (n * 100) / total
+				}
+				fmt.Fprintf(w, "  SHA-pinned:    %3d (%d%%)\n", ps.SHAPinned, pct(ps.SHAPinned))       //nolint:errcheck
+				fmt.Fprintf(w, "  Exact version: %3d (%d%%)\n", ps.ExactVersion, pct(ps.ExactVersion)) //nolint:errcheck
+				fmt.Fprintf(w, "  Major tag:     %3d (%d%%)  \u26a0\n", ps.MajorTag, pct(ps.MajorTag)) //nolint:errcheck
+				fmt.Fprintf(w, "  Branch:        %3d (%d%%)  \u26a0\u26a0\n", ps.Branch, pct(ps.Branch)) //nolint:errcheck
+				fmt.Fprintln(w)                                                                            //nolint:errcheck
+				fmt.Fprintf(w, "  First-party: %4d    Third-party: %d\n", ps.FirstParty, ps.ThirdParty) //nolint:errcheck
+				if ps.ScriptDownloads > 0 {
+					fmt.Fprintf(w, "  Script downloads: %d   \u26a0\u26a0 (curl|bash detected)\n", ps.ScriptDownloads) //nolint:errcheck
+				}
+			}
 		}
 	}
 
