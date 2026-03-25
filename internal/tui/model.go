@@ -148,11 +148,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.ensureVisible()
 		case "enter":
-			if m.mode == viewTree && m.cursor < len(m.visible) {
+			if m.cursor < len(m.visible) {
 				id := m.visible[m.cursor]
-				m.expanded[id] = !m.expanded[id]
-				m.rebuildVisible()
-				m.clampCursor()
+				neighbors := m.graph.Neighbors(id)
+				if m.mode == viewTree && len(neighbors) > 0 {
+					// Has children: expand/collapse
+					m.expanded[id] = !m.expanded[id]
+					m.rebuildVisible()
+					m.clampCursor()
+				} else {
+					// Leaf node or flat view: open inspect panel
+					if m.inspecting == id {
+						m.inspecting = ""
+					} else {
+						m.inspecting = id
+					}
+				}
 			}
 		case "tab":
 			if m.mode == viewTree {

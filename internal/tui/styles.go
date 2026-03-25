@@ -1,7 +1,10 @@
 // internal/tui/styles.go
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/depscope/depscope/internal/core"
+)
 
 // Risk-level colors.
 var (
@@ -75,6 +78,11 @@ func riskStyle(risk string) lipgloss.Style {
 	default:
 		return styleUnknown
 	}
+}
+
+// riskColorFor returns a style colored by risk level, for use in inspect panel.
+func riskColorFor(_ int, risk core.RiskLevel) lipgloss.Style {
+	return riskStyle(string(risk))
 }
 
 // Tree branch characters.

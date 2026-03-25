@@ -32,26 +32,83 @@ func (m Model) renderInspect(maxHeight, maxWidth int) string {
 	if n.Ref != "" {
 		lines = append(lines, kv("Ref", n.Ref))
 	}
-	lines = append(lines, kv("Score", fmt.Sprintf("%d", n.Score)))
-	lines = append(lines, kv("Risk", string(n.Risk)))
-	lines = append(lines, kv("Pinning", n.Pinning.String()))
+	lines = append(lines, kv("Score", riskColorFor(n.Score, n.Risk).Render(fmt.Sprintf("%d (%s)", n.Score, n.Risk))))
+	if n.Pinning.String() != "n/a" {
+		lines = append(lines, kv("Pinning", n.Pinning.String()))
+	}
 	lines = append(lines, "")
 
-	// Metadata
+	// Transitive risk (from metadata)
+	if tr, ok := n.Metadata["transitive_risk_score"]; ok {
+		trScore := fmt.Sprintf("%v", tr)
+		if trRisk, ok := n.Metadata["transitive_risk"]; ok {
+			trScore = fmt.Sprintf("%v (%v)", tr, trRisk)
+		}
+		lines = append(lines, kv("Transitive Risk", trScore))
+	}
+
+	// Ecosystem + constraint info
+	if eco, ok := n.Metadata["ecosystem"].(string); ok && eco != "" {
+		lines = append(lines, kv("Ecosystem", eco))
+	}
+	if ct, ok := n.Metadata["constraint_type"].(string); ok && ct != "" {
+		lines = append(lines, kv("Constraint", ct))
+	}
+	if depth, ok := n.Metadata["depth"]; ok {
+		lines = append(lines, kv("Depth", fmt.Sprintf("%v", depth)))
+	}
+
+	// Action-specific: first-party, action type
+	if fp, ok := n.Metadata["first_party"].(bool); ok {
+		if fp {
+			lines = append(lines, kv("First-party", "yes (GitHub-maintained)"))
+		} else {
+			lines = append(lines, kv("First-party", "no (third-party)"))
+		}
+	}
+	if at, ok := n.Metadata["action_type"].(string); ok {
+		lines = append(lines, kv("Action Type", at))
+	}
+
+	// Issues (from metadata if stored)
+	if issues, ok := n.Metadata["issues"].([]any); ok && len(issues) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, stylePanelTitle.Render(fmt.Sprintf("Issues (%d)", len(issues))))
+		for i, iss := range issues {
+			if i >= 10 {
+				lines = append(lines, fmt.Sprintf("  ... and %d more", len(issues)-10))
+				break
+			}
+			lines = append(lines, "  "+fmt.Sprintf("%v", iss))
+		}
+	}
+
+	// Other metadata (filtered: skip already-shown keys)
+	shownKeys := map[string]bool{
+		"transitive_risk_score": true, "transitive_risk": true,
+		"ecosystem": true, "constraint_type": true, "depth": true,
+		"first_party": true, "action_type": true, "issues": true,
+	}
+	var extraMeta []string
 	if len(n.Metadata) > 0 {
-		lines = append(lines, stylePanelTitle.Render("Metadata"))
-		// Sort keys for deterministic output
 		keys := make([]string, 0, len(n.Metadata))
 		for k := range n.Metadata {
-			keys = append(keys, k)
+			if !shownKeys[k] {
+				keys = append(keys, k)
+			}
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
 			v := fmt.Sprintf("%v", n.Metadata[k])
-			lines = append(lines, kv("  "+k, v))
+			extraMeta = append(extraMeta, kv("  "+k, v))
 		}
-		lines = append(lines, "")
 	}
+	if len(extraMeta) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, stylePanelTitle.Render("Details"))
+		lines = append(lines, extraMeta...)
+	}
+	lines = append(lines, "")
 
 	// Edges: outgoing
 	outgoing := m.findOutgoingEdges(m.inspecting)
