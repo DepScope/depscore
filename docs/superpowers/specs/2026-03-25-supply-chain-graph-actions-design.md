@@ -57,13 +57,15 @@ Three-phase enhancement to depscope:
 
 Each node has a unique ID following the pattern `{type}:{ecosystem}/{name}@{version}`:
 
-- `package:pypi/litellm@1.82.8`
+- `package:python/litellm@1.82.8`
 - `repo:github.com/BerriAI/litellm`
 - `action:actions/checkout@v4`
 - `action:actions/checkout@abc123def456` (SHA-pinned)
 - `workflow:github.com/org/repo/.github/workflows/ci.yml`
 - `docker_image:docker.io/python@3.12-slim`
 - `script_download:https://install.example.com/setup.sh`
+
+**Mapping from existing Package.Key():** The current `Package.Key()` returns `{ecosystem}/{name}@{version}` (e.g., `python/litellm@1.82.8`). The graph builder prepends the node type prefix: `package:` + `Package.Key()`. The ecosystem string in the key uses the internal constant value (`python`, `go`, `npm`, `rust`, `php`) not the display string (`PyPI`, `Go`, `crates.io`). No changes to `Package.Key()` itself.
 
 ### Node Properties
 
@@ -128,7 +130,7 @@ Extend `internal/cache` with tiered TTLs:
 | `registry:{ecosystem}:{name}:{version}` | 24h | Package registry metadata (already exists) |
 | `cve:{ecosystem}:{name}:{version}` | 6h | CVE data (already exists) |
 | `repo:{owner}/{repo}` | 12h | Repo metadata: stars, maintainers, archived |
-| `repo:{owner}/{repo}:{sha}` | forever | Immutable: file content at specific SHA |
+| `repo:{owner}/{repo}:{sha}` | 87600h (10 years) | Immutable: file content at specific SHA. Use max TTL as "forever" — content at a SHA never changes. |
 | `action:{owner}/{repo}:{ref}` | 1h | Tag → SHA resolution (tags can move) |
 | `docker:{image}:{tag}` | 6h | Docker Hub metadata, tag → digest |
 
@@ -223,7 +225,7 @@ For Python actions (composite with pip): detect `pip install` in `run:` steps �
 | Maintainer count | 10% | Bus factor |
 | Release recency | 10% | Last release/tag age |
 | Bundled dep risk | 15% | Worst score among bundled packages |
-| Permissions scope | 10% | Broad permissions = higher risk |
+| Permissions scope | 10% | Workflow-level `permissions:` block grants broad access (e.g., `contents: write`, `id-token: write`). Scored per-workflow, inherited by all actions within it. If no `permissions:` block is defined, the workflow gets default (broad) permissions — higher risk. This factor is on the workflow node, propagated to child action nodes. |
 
 ### Docker Image Scoring Factors
 
@@ -233,7 +235,7 @@ For Python actions (composite with pip): detect `pip install` in `run:` steps �
 | Official status | 20% | Docker Official Image or Verified Publisher |
 | Image age | 20% | Last pushed date |
 | Base image chain | 15% | What it's built FROM |
-| Vulnerability count | 15% | Known CVEs in image layers |
+| Vulnerability count | 15% | Known CVEs in image layers. Phase 2 uses Docker Hub API metadata (if available) rather than full image scanning. Full CVE scanning (Trivy/Grype integration) deferred to future enhancement. |
 
 ### Script Download Scoring
 
@@ -247,15 +249,18 @@ Detection patterns:
 
 ### CLI Changes (Phase 2)
 
-**`--org` flag** on `scan` and `discover`:
+**`--org` flag** on `scan`:
 
 ```bash
 depscope scan --org my-org                          # scan all repos in org
 depscope scan --org my-org --only actions           # just actions across org
-depscope discover actions/checkout --range ">=4.0.0,<4.2.0" --org my-org
 ```
 
-Implementation: GitHub API `GET /orgs/{org}/repos` to list repos, then scan each repo's workflows via the existing remote resolver.
+Implementation: GitHub API `GET /orgs/{org}/repos` (paginated) to list repos, then scan each repo's workflows via the existing remote resolver (GitHub Trees API + Contents API, no clone needed).
+
+**`--org` flag** on `discover` (deferred to follow-up):
+
+`discover --org` would search all org repos for a specific compromised action. This requires different resolution than the current filesystem-based discover (which walks local dirs). Deferring to a follow-up spec to keep Phase 2 focused. Users can achieve the same result with `depscope discover actions/checkout --range ">=4.0.0" --list org-repos.txt` where `org-repos.txt` lists cloned repo paths.
 
 **Output changes:**
 
@@ -278,10 +283,10 @@ SARIF output maps issues to workflow file locations (line numbers of `uses:` ref
 
 ### Manifest Detection
 
-`.github/workflows/*.yml` files are added to the existing `resolve/filters.go` manifest detection:
-- `ManifestFilenames` gains workflow YAML patterns
-- `DetectAllEcosystems` recognizes `EcosystemActions` when `.github/workflows/` exists
-- `Dockerfile` is recognized for Docker image scanning
+`.github/workflows/*.yml` files are added to the existing manifest detection:
+- `resolve/filters.go`: `ManifestFilenames` gains `Dockerfile` (Docker image scanning)
+- `manifest/manifest.go`: New `EcosystemActions` and `EcosystemDocker` constants added to `Ecosystem` type. `ecosystemFiles` table gains entries for `.github/workflows/` directory detection. `DetectAllEcosystems` (which lives in `manifest/manifest.go`, not `resolve/filters.go`) recognizes `EcosystemActions` when `.github/workflows/` exists.
+- Note: workflow files are detected at the directory level (`.github/workflows/` exists), not as individual manifest filenames, since there can be multiple workflow files per project.
 
 ## Phase 3: Graph Visualization (TUI)
 
