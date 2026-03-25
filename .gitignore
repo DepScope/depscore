@@ -11,3 +11,4 @@ lambda.zip
 
 # OS
 .DS_Store
+dist/
