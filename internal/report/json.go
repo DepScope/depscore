@@ -5,19 +5,43 @@ import (
 	"io"
 
 	"github.com/depscope/depscope/internal/core"
+	"github.com/depscope/depscope/internal/graph"
 )
 
 // jsonScanResult is the serialized form of a ScanResult with a 'passed' field.
 type jsonScanResult struct {
-	Profile        string                    `json:"profile"`
-	PassThreshold  int                       `json:"pass_threshold"`
-	Passed         bool                      `json:"passed"`
-	DirectDeps     int                       `json:"direct_deps"`
-	TransitiveDeps int                       `json:"transitive_deps"`
-	Packages       []jsonPackageResult       `json:"packages"`
-	AllIssues      []jsonIssue               `json:"all_issues"`
-	RiskPaths      []jsonRiskPath            `json:"risk_paths,omitempty"`
-	Suspicious     []jsonSuspicious          `json:"suspicious,omitempty"`
+	Profile        string              `json:"profile"`
+	PassThreshold  int                 `json:"pass_threshold"`
+	Passed         bool                `json:"passed"`
+	DirectDeps     int                 `json:"direct_deps"`
+	TransitiveDeps int                 `json:"transitive_deps"`
+	Packages       []jsonPackageResult `json:"packages"`
+	AllIssues      []jsonIssue         `json:"all_issues"`
+	RiskPaths      []jsonRiskPath      `json:"risk_paths,omitempty"`
+	Suspicious     []jsonSuspicious    `json:"suspicious,omitempty"`
+	Graph          *jsonGraph          `json:"graph,omitempty"`
+}
+
+type jsonGraph struct {
+	Nodes []jsonGraphNode `json:"nodes"`
+	Edges []jsonGraphEdge `json:"edges"`
+}
+
+type jsonGraphNode struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+	Score   int    `json:"score"`
+	Risk    string `json:"risk"`
+	Pinning string `json:"pinning,omitempty"`
+}
+
+type jsonGraphEdge struct {
+	From  string `json:"from"`
+	To    string `json:"to"`
+	Type  string `json:"type"`
+	Depth int    `json:"depth,omitempty"`
 }
 
 type jsonRiskPath struct {
@@ -140,6 +164,32 @@ func WriteJSON(w io.Writer, result core.ScanResult) error {
 		AllIssues:      allIssues,
 		RiskPaths:      riskPaths,
 		Suspicious:     suspicious,
+	}
+
+	if result.Graph != nil {
+		if g, ok := result.Graph.(*graph.Graph); ok {
+			jg := &jsonGraph{}
+			for _, n := range g.Nodes {
+				jg.Nodes = append(jg.Nodes, jsonGraphNode{
+					ID:      n.ID,
+					Type:    n.Type.String(),
+					Name:    n.Name,
+					Version: n.Version,
+					Score:   n.Score,
+					Risk:    string(n.Risk),
+					Pinning: n.Pinning.String(),
+				})
+			}
+			for _, e := range g.Edges {
+				jg.Edges = append(jg.Edges, jsonGraphEdge{
+					From:  e.From,
+					To:    e.To,
+					Type:  e.Type.String(),
+					Depth: e.Depth,
+				})
+			}
+			out.Graph = jg
+		}
 	}
 
 	return json.NewEncoder(w).Encode(out)

@@ -20,6 +20,7 @@ func init() {
 	scanCmd.Flags().Int("max-files", 5000, "max manifest files to fetch from remote repos")
 	scanCmd.Flags().Bool("verbose", false, "verbose output")
 	scanCmd.Flags().Bool("no-cve", false, "skip CVE scanning (faster, reputation-only)")
+	scanCmd.Flags().StringSlice("only", nil, "filter to specific ecosystems: python, go, rust, npm, php")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -64,10 +65,12 @@ func runScan(cmd *cobra.Command, args []string) error {
 	maxFiles, _ := cmd.Flags().GetInt("max-files")
 
 	noCVE, _ := cmd.Flags().GetBool("no-cve")
+	only, _ := cmd.Flags().GetStringSlice("only")
 	opts := scanner.Options{
 		Profile:  cfg.Profile,
 		MaxFiles: maxFiles,
 		NoCVE:    noCVE,
+		Only:     only,
 	}
 
 	var scanResult *core.ScanResult
