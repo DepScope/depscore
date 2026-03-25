@@ -9,6 +9,7 @@ import (
 
 	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/core"
+	"github.com/depscope/depscope/internal/graph"
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
 	"github.com/depscope/depscope/internal/resolve"
@@ -20,7 +21,8 @@ import (
 type Options struct {
 	Profile  string
 	MaxFiles int
-	NoCVE    bool // skip CVE scanning (OSV queries)
+	NoCVE    bool     // skip CVE scanning (OSV queries)
+	Only     []string // filter to these ecosystems (empty = all); values are internal constants: python, go, rust, npm, php
 }
 
 // ScanURL resolves a remote URL, parses manifests, fetches registry data,
@@ -60,6 +62,15 @@ func ScanURL(ctx context.Context, url string, opts Options) (*core.ScanResult, e
 			log.Printf("warning: skipping %s: %v", dir, err)
 			continue
 		}
+		if len(opts.Only) > 0 {
+			allowed := make(map[string]bool)
+			for _, o := range opts.Only {
+				allowed[o] = true
+			}
+			if !allowed[string(eco)] {
+				continue
+			}
+		}
 		parsed, err := manifest.ParserFor(eco).ParseFiles(fileMap)
 		if err != nil {
 			return nil, fmt.Errorf("parse %s: %w", dir, err)
@@ -76,6 +87,19 @@ func ScanDir(dir string, opts Options) (*core.ScanResult, error) {
 	cfg := config.ProfileByName(opts.Profile)
 
 	ecosystems := manifest.DetectAllEcosystems(dir)
+	if len(opts.Only) > 0 {
+		allowed := make(map[string]bool)
+		for _, o := range opts.Only {
+			allowed[o] = true
+		}
+		var filtered []manifest.Ecosystem
+		for _, eco := range ecosystems {
+			if allowed[string(eco)] {
+				filtered = append(filtered, eco)
+			}
+		}
+		ecosystems = filtered
+	}
 	if len(ecosystems) == 0 {
 		return nil, fmt.Errorf("no recognized manifest found in %s", dir)
 	}
@@ -269,6 +293,12 @@ func scorePipeline(pkgs []manifest.Package, cfg config.Config, noCVE bool) (*cor
 		RiskPaths:      riskPaths,
 		Suspicious:     suspicious,
 	}
+
+	// Build supply chain graph from scan results
+	g := graph.BuildFromScanResult(result)
+	graph.Propagate(g)
+	result.Graph = g
+
 	return result, nil
 }
 
