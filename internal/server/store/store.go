@@ -33,3 +33,31 @@ type ScanStore interface {
 	// List returns all stored scan jobs in no guaranteed order.
 	List() []*ScanJob
 }
+
+// GraphStore extends ScanStore with graph persistence.
+type GraphStore interface {
+	ScanStore
+	SaveGraph(scanID string, nodes []GraphNode, edges []GraphEdge) error
+	LoadGraph(scanID string) ([]GraphNode, []GraphEdge, error)
+}
+
+// GraphNode is the storage representation of a graph node.
+type GraphNode struct {
+	NodeID   string
+	Type     string
+	Name     string
+	Version  string
+	Ref      string
+	Score    int
+	Risk     string
+	Pinning  string
+	Metadata map[string]any
+}
+
+// GraphEdge is the storage representation of a graph edge.
+type GraphEdge struct {
+	From  string
+	To    string
+	Type  string
+	Depth int
+}
