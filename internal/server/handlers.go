@@ -28,8 +28,15 @@ type scanningData struct {
 // resultsData is the template data for the results page.
 type resultsData struct {
 	URL    string
+	ScanID string
 	Result interface{} // *core.ScanResult or nil
 	Error  string
+}
+
+// graphPageData is the template data for the graph page.
+type graphPageData struct {
+	URL    string
+	ScanID string
 }
 
 // scanStatusResponse is the JSON body for GET /api/scan/{id}.
@@ -98,9 +105,9 @@ func (s *Server) handleScanPage(w http.ResponseWriter, r *http.Request) {
 	case "queued", "running":
 		s.renderTemplate(w, r, "scanning.html", scanningData{URL: job.URL, ID: job.ID})
 	case "complete":
-		s.renderTemplate(w, r, "results.html", resultsData{URL: job.URL, Result: job.Result})
+		s.renderTemplate(w, r, "results.html", resultsData{URL: job.URL, ScanID: id, Result: job.Result})
 	case "failed":
-		s.renderTemplate(w, r, "results.html", resultsData{URL: job.URL, Error: job.Error})
+		s.renderTemplate(w, r, "results.html", resultsData{URL: job.URL, ScanID: id, Error: job.Error})
 	default:
 		s.renderTemplate(w, r, "scanning.html", scanningData{URL: job.URL, ID: job.ID})
 	}
@@ -545,6 +552,17 @@ func (s *Server) handleNodeDetail(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleGraphPage renders the graph visualization page.
+func (s *Server) handleGraphPage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	job, err := s.store.Get(id)
+	if err != nil || job == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.renderTemplate(w, r, "graph.html", graphPageData{URL: job.URL, ScanID: id})
 }
 
 // storeNodeToD3 converts a store.GraphNode to a D3-friendly node.

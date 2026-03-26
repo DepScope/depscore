@@ -63,6 +63,7 @@ func NewServer(opts Options) (*Server, error) {
 	s.mux.HandleFunc("GET /", s.handleLanding)
 	s.mux.HandleFunc("POST /scan", s.handleSubmitScan)
 	s.mux.HandleFunc("GET /scan/{id}", s.handleScanPage)
+	s.mux.HandleFunc("GET /scan/{id}/graph", s.handleGraphPage)
 	s.mux.HandleFunc("GET /api/scan/{id}", s.handleScanStatus)
 	// Route for package detail: /api/package/{eco}/{name...}
 	// The handler splits the last path segment as the version.
