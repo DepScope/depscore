@@ -373,6 +373,108 @@ The existing `ScanStore` interface has `Save`, `Get`, `SetStatus` methods. SQLit
 - **Vanilla JS** — no frameworks, consistent with existing UI
 - **Existing dark theme** — reuse CSS variables and component patterns
 
+## TUI Graph View
+
+Add a third view mode to the existing `depscope explore` TUI (alongside tree and flat). Press `g` to switch to graph view.
+
+### Three Zoom Levels
+
+| Level | Key | What it shows | Node count |
+|-------|-----|---------------|------------|
+| Risk overview | `g` (default) | Only HIGH + CRITICAL nodes | ~15-30 |
+| Neighborhood | `Enter` on a node | Selected node + 1-2 hop neighbors | ~5-20 |
+| Cluster view | `-` to zoom out | Nodes grouped by type (packages, actions, workflows) | All, grouped |
+
+`+`/`-` keys zoom between levels. `Enter` in graph view enters neighborhood of selected node. `Esc` returns to previous zoom level.
+
+### Node Rendering (Unicode)
+
+```
+●  package (circle)
+◆  action (diamond)
+■  workflow (square)
+⬡  docker image (hexagon)
+▲  script download (triangle)
+```
+
+Colored by risk: red=CRITICAL, orange=HIGH, yellow=MEDIUM, green=LOW. Using ANSI terminal colors.
+
+### Edge Rendering (Unicode Line Drawing)
+
+```
+─  horizontal        │  vertical
+╭  top-left curve    ╮  top-right curve
+╰  bottom-left       ╯  bottom-right
+╱  diagonal up       ╲  diagonal down
+→  right arrow       ↓  down arrow       ↑  up arrow       ←  left arrow
+┼  crossing
+```
+
+Edges colored by type: grey=depends_on, blue=uses_action, orange=bundles, red=downloads, cyan=pulls_image, purple=triggers.
+
+### Layout Algorithm
+
+1. Compute force-directed layout in Go (simplified force simulation):
+   - Repulsion force between all nodes
+   - Attraction force along edges
+   - Iterate ~100 steps to settle
+2. Map floating-point positions to character grid (terminal width × height)
+3. Place node characters at grid positions
+4. Draw edges using Bresenham-like line drawing with Unicode characters
+5. Handle crossings with `┼` character
+6. Re-layout on terminal resize
+
+### Example: Risk Overview
+
+```
+          ●colorama(35)
+         ╱
+   ●click(81)──→●yaml.v3(35)
+      │
+   ◆lint(52)──→●@actions/core(0)
+      │
+   ◆tag(45)──→●@semantic-release(0)
+```
+
+### Example: Neighborhood View (centered on ci.yml)
+
+```
+                    ●@actions/core
+                   ╱         ╲
+   ■ci.yml──→◆checkout    ●@actions/github
+      │    ╲
+      │     ◆setup-go──→●@actions/cache
+      │         ╲
+      └──→◆lint──→●@octokit/rest
+               ╲
+                ●@actions/tool-cache
+```
+
+### Integration with Existing TUI
+
+- New view mode accessed via `g` key (alongside tree=default, flat=Tab)
+- Same footer: `[↑↓] navigate [g] graph [enter] zoom in [esc] zoom out [/] search [f] filter [i] inspect [q] quit`
+- Search (`/`) highlights matching nodes in the graph
+- Filter (`f`) applies to graph (only show filtered risk levels)
+- Inspect (`i`) opens the same detail panel as tree/flat views
+- Blast radius not in TUI (web only — too complex for terminal sidebar)
+
+### New Package: `internal/tui/graphview`
+
+| File | Responsibility |
+|------|---------------|
+| `layout.go` | Force-directed layout algorithm (Go port of simplified D3 force) |
+| `render.go` | Map layout positions to character grid, draw nodes + edges with Unicode |
+| `edges.go` | Bresenham line drawing with Unicode characters, crossing detection |
+| `view.go` | Bubbletea integration — handles zoom levels, navigation, resize |
+
+### Tech
+
+- Pure Go, no external dependencies beyond existing bubbletea/lipgloss
+- Force layout: simple Fruchterman-Reingold algorithm (~100 lines)
+- Edge routing: modified Bresenham with Unicode character selection
+- Character grid: 2D byte array mapped to terminal coordinates
+
 ## Implementation Phases
 
 | Phase | What | Priority |
@@ -382,17 +484,20 @@ The existing `ScanStore` interface has `Save`, `Get`, `SetStatus` methods. SQLit
 | 3 | Blast radius (CVE + package mode) | High value |
 | 4 | Zero-day simulation | Medium value |
 | 5 | Gap analysis | Medium value |
-| 6 | Polish: animations, responsive, performance | Nice to have |
+| 6 | TUI graph view (risk overview + neighborhood + clusters) | High value |
+| 7 | Polish: animations, responsive, performance | Nice to have |
 
-Each phase produces working software. Phase 2 is the big visual payoff.
+Each phase produces working software. Phase 2 is the big visual payoff. Phase 6 can run in parallel with phases 3-5 since it's in a different package.
 
 ## Error Handling
 
 - **D3 rendering with large graphs (500+ nodes)**: Use node/edge limits with "show top N by risk" option. Force simulation with lower alpha for faster settling.
+- **TUI graph with many nodes**: Risk overview limits to HIGH+ by default. Neighborhood limits to 2 hops. Cluster view groups nodes so individual count doesn't matter.
 - **Blast radius with no matches**: Show "No affected nodes found" message, don't change graph state.
 - **Simulation with unknown package**: Show "Package not found in graph" warning.
 - **SQLite file corruption**: Fall back to in-memory store, log warning.
 - **CDN unavailable (D3)**: Embed a fallback D3 bundle in the binary as a static asset. Check CDN first, fall back to local.
+- **Terminal too small for graph**: Fall back to tree view with warning "Terminal too small for graph view (min 80×24)".
 
 ## Testing Strategy
 
@@ -401,3 +506,6 @@ Each phase produces working software. Phase 2 is the big visual payoff.
 - **D3 visualization**: Manual testing (hard to automate SVG rendering). Verify data format with unit tests on the JSON serialization.
 - **Blast radius logic**: Unit tests with known graph topologies and expected affected sets
 - **Gap analysis**: Unit tests checking each gap type detection
+- **TUI graph layout**: Unit tests for force layout (verify nodes don't overlap, edges connect correct nodes)
+- **TUI edge rendering**: Unit tests for Bresenham line drawing (verify correct Unicode characters at positions)
+- **TUI zoom levels**: Unit tests for risk filtering, neighborhood extraction, cluster grouping
