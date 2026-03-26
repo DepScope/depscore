@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/depscope/depscope/internal/core"
+	"github.com/depscope/depscope/internal/graph"
 	"github.com/depscope/depscope/internal/scanner"
 	"github.com/depscope/depscope/internal/server/store"
 )
@@ -154,6 +155,37 @@ func (s *Server) runScan(ctx context.Context, id, rawURL, profile string) {
 	}
 
 	_ = s.store.SaveResult(id, result)
+
+	if s.graphStore != nil && result.Graph != nil {
+		if g, ok := result.Graph.(*graph.Graph); ok {
+			nodes := make([]store.GraphNode, 0, len(g.Nodes))
+			for _, n := range g.Nodes {
+				nodes = append(nodes, store.GraphNode{
+					NodeID:   n.ID,
+					Type:     n.Type.String(),
+					Name:     n.Name,
+					Version:  n.Version,
+					Ref:      n.Ref,
+					Score:    n.Score,
+					Risk:     string(n.Risk),
+					Pinning:  n.Pinning.String(),
+					Metadata: n.Metadata,
+				})
+			}
+			edges := make([]store.GraphEdge, 0, len(g.Edges))
+			for _, e := range g.Edges {
+				edges = append(edges, store.GraphEdge{
+					From:  e.From,
+					To:    e.To,
+					Type:  e.Type.String(),
+					Depth: e.Depth,
+				})
+			}
+			if err := s.graphStore.SaveGraph(id, nodes, edges); err != nil {
+				log.Printf("save graph for scan %s: %v", id, err)
+			}
+		}
+	}
 }
 
 // packageDetailResponse is the JSON body for GET /api/package/{eco}/{rest...}.

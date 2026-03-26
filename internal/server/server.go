@@ -22,14 +22,16 @@ const (
 
 // Options configures the server.
 type Options struct {
-	Store store.ScanStore
-	Mode  Mode
+	Store      store.ScanStore
+	GraphStore store.GraphStore
+	Mode       Mode
 }
 
 // Server is the HTTP handler for the depscope web interface.
 type Server struct {
-	store store.ScanStore
-	mode  Mode
+	store      store.ScanStore
+	graphStore store.GraphStore
+	mode       Mode
 	// base is the layout-only template; each page is cloned from it.
 	base *template.Template
 	mux  *http.ServeMux
@@ -38,9 +40,10 @@ type Server struct {
 // NewServer creates and configures a new Server.
 func NewServer(opts Options) (*Server, error) {
 	s := &Server{
-		store: opts.Store,
-		mode:  opts.Mode,
-		mux:   http.NewServeMux(),
+		store:      opts.Store,
+		graphStore: opts.GraphStore,
+		mode:       opts.Mode,
+		mux:        http.NewServeMux(),
 	}
 
 	funcMap := template.FuncMap{
