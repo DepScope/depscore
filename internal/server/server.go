@@ -67,6 +67,10 @@ func NewServer(opts Options) (*Server, error) {
 	// Route for package detail: /api/package/{eco}/{name...}
 	// The handler splits the last path segment as the version.
 	s.mux.HandleFunc("GET /api/package/{eco}/{rest...}", s.handlePackageDetail)
+	// Graph API: D3-friendly JSON for the full graph.
+	s.mux.HandleFunc("GET /api/scan/{id}/graph", s.handleGraphAPI)
+	// Node detail API: nodeID contains colons and slashes, so use rest pattern.
+	s.mux.HandleFunc("GET /api/scan/{id}/graph/node/{nodeID...}", s.handleNodeDetail)
 	// Serve static files from the embedded FS (strip the /static/ prefix so
 	// http.FileServerFS sees paths relative to the root of the FS).
 	s.mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticSubFS())))
