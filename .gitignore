@@ -12,3 +12,6 @@ lambda.zip
 # OS
 .DS_Store
 dist/
+*.db
+*.db-shm
+*.db-wal
