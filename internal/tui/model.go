@@ -10,13 +10,15 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/depscope/depscope/internal/graph"
+	"github.com/depscope/depscope/internal/tui/graphview"
 )
 
 type viewMode int
 
 const (
-	viewTree viewMode = iota
+	viewTree  viewMode = iota
 	viewFlat
+	viewGraph
 )
 
 // Model is the bubbletea model for the TUI explorer.
@@ -37,6 +39,7 @@ type Model struct {
 	showPaths   bool     // showing paths view
 	pathResults [][]string // paths from roots to selected node
 	offset      int      // scroll offset for viewport
+	graphView   *graphview.GraphViewModel // graph view model (lazy-initialized)
 }
 
 // NewModel creates a new TUI model from a graph.
@@ -97,6 +100,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		if m.graphView != nil {
+			m.graphView.SetSize(msg.Width, m.contentHeight())
+		}
 		m.clampCursor()
 		return m, nil
 
@@ -117,6 +123,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, nil
+		}
+
+		// Handle graph view mode keys.
+		if m.mode == viewGraph {
+			return m.updateGraph(msg)
 		}
 
 		switch msg.String() {
@@ -174,6 +185,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rebuildVisible()
 			m.cursor = 0
 			m.offset = 0
+		case "g":
+			m.enterGraphView()
 		case "/":
 			m.searching = true
 			m.searchInput.Focus()
@@ -229,7 +242,9 @@ func (m Model) View() string {
 
 	// Main content area
 	contentHeight := m.contentHeight()
-	if m.showPaths {
+	if m.mode == viewGraph {
+		b.WriteString(m.renderGraphView(contentHeight))
+	} else if m.showPaths {
 		b.WriteString(m.renderPaths(contentHeight))
 	} else if m.inspecting != "" {
 		// Split layout: content left, inspect right
@@ -272,8 +287,11 @@ func (m Model) renderHeader() string {
 	}
 
 	viewStr := "tree"
-	if m.mode == viewFlat {
+	switch m.mode {
+	case viewFlat:
 		viewStr = "flat"
+	case viewGraph:
+		viewStr = "graph"
 	}
 
 	text := fmt.Sprintf(" depscope explore -- %d nodes, %d edges | Filter: %s | View: %s ",
@@ -288,8 +306,12 @@ func (m Model) renderFooter() string {
 		return styleFooter.Width(m.width).Render(
 			" [esc] close paths  [q] quit")
 	}
+	if m.mode == viewGraph {
+		return styleFooter.Width(m.width).Render(
+			" [↑↓] navigate  [enter] zoom in  [esc] zoom out  [+/-] zoom  [g] back  [q] quit")
+	}
 	return styleFooter.Width(m.width).Render(
-		" [↑↓] navigate  [enter] expand  [/] search  [f] filter  [i] inspect  [p] paths  [Tab] view  [q] quit")
+		" [↑↓] navigate  [enter] expand  [/] search  [f] filter  [i] inspect  [p] paths  [g] graph  [Tab] view  [q] quit")
 }
 
 // contentHeight returns the available lines for the main content.
@@ -371,6 +393,57 @@ func (m *Model) computePaths(nodeID string) {
 		paths := m.graph.FindPaths(root, nodeID, 10)
 		m.pathResults = append(m.pathResults, paths...)
 	}
+}
+
+// enterGraphView switches to graph view mode.
+func (m *Model) enterGraphView() {
+	if m.graphView == nil {
+		m.graphView = graphview.NewGraphViewModel(m.graph)
+	}
+	m.mode = viewGraph
+	m.graphView.SetSize(m.width, m.contentHeight())
+}
+
+// updateGraph handles key events in graph view mode.
+func (m Model) updateGraph(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		m.graphView.SelectPrev()
+	case "down", "j":
+		m.graphView.SelectNext()
+	case "enter", "+":
+		m.graphView.ZoomIn()
+	case "esc", "-":
+		// If at risk overview, Esc/- goes back to tree view.
+		if msg.String() == "esc" && m.graphView.ZoomLevel() == graphview.ZoomRisk {
+			m.mode = viewTree
+			m.rebuildVisible()
+			m.clampCursor()
+			return m, nil
+		}
+		if msg.String() == "-" && m.graphView.ZoomLevel() == graphview.ZoomRisk {
+			m.graphView.SetZoomCluster()
+		} else {
+			m.graphView.ZoomOut()
+		}
+	case "g":
+		// Toggle back to tree view.
+		m.mode = viewTree
+		m.rebuildVisible()
+		m.clampCursor()
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+// renderGraphView renders the graph view for the content area.
+func (m Model) renderGraphView(contentHeight int) string {
+	if m.graphView == nil {
+		return ""
+	}
+	m.graphView.SetSize(m.width, contentHeight)
+	return m.graphView.View()
 }
 
 // formatNodeLine builds a display string for a node.
