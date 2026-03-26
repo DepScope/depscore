@@ -270,13 +270,15 @@ or:
 ```json
 {
   "package": "lodash",
-  "version": "4.17.21",
+  "range": ">=4.17.0,<4.17.22",
   "severity": "critical",
   "description": "Simulated prototype pollution RCE"
 }
 ```
 
-Response: same format as blast radius.
+Uses the same version range format as blast radius package mode. Response: same format as blast radius.
+
+Note: `repo` nodes (from `EdgeHostedAt`/`EdgeResolvesTo`) are structural — hidden from the graph view by default to reduce clutter. They can be shown via a future "show repos" toggle.
 
 ### Gap Analysis Response
 
