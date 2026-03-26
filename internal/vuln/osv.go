@@ -75,6 +75,71 @@ func (c *OSVClient) Query(ecosystem, name, version string) ([]Finding, error) {
 	return raw.toFindings(), nil
 }
 
+// AffectedPackage describes a package and version range affected by a vulnerability.
+type AffectedPackage struct {
+	Name      string
+	Ecosystem string
+	Range     string // e.g., ">=1.0.0,<1.5.0"
+}
+
+// QueryByID fetches a specific vulnerability by its OSV/CVE ID via GET /v1/vulns/{id}
+// and returns the list of affected packages with their version ranges.
+func (c *OSVClient) QueryByID(id string) ([]AffectedPackage, error) {
+	url := fmt.Sprintf("%s/v1/vulns/%s", c.baseURL, id)
+	resp, err := c.httpClient.Get(url) //nolint:noctx
+	if err != nil {
+		return nil, fmt.Errorf("osv: GET %s: %w", url, err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("osv: GET %s returned %d", url, resp.StatusCode)
+	}
+
+	var v osvVuln
+	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+		return nil, fmt.Errorf("osv: decode response: %w", err)
+	}
+
+	return extractAffectedPackages(&v), nil
+}
+
+// extractAffectedPackages extracts affected package info from an osvVuln.
+func extractAffectedPackages(v *osvVuln) []AffectedPackage {
+	var result []AffectedPackage
+	for _, aff := range v.Affected {
+		for _, rng := range aff.Ranges {
+			var introduced, fixed string
+			for _, ev := range rng.Events {
+				if ev.Introduced != "" {
+					introduced = ev.Introduced
+				}
+				if ev.Fixed != "" {
+					fixed = ev.Fixed
+				}
+			}
+			if introduced != "" || fixed != "" {
+				var rangeStr string
+				if introduced != "" && introduced != "0" && fixed != "" {
+					rangeStr = fmt.Sprintf(">=%s,<%s", introduced, fixed)
+				} else if introduced != "" && introduced != "0" {
+					rangeStr = fmt.Sprintf(">=%s", introduced)
+				} else if fixed != "" {
+					rangeStr = fmt.Sprintf("<%s", fixed)
+				}
+				if rangeStr != "" {
+					result = append(result, AffectedPackage{
+						Name:      aff.Package.Name,
+						Ecosystem: aff.Package.Ecosystem,
+						Range:     rangeStr,
+					})
+				}
+			}
+		}
+	}
+	return result
+}
+
 // ---- raw JSON shapes -------------------------------------------------------
 
 type osvQueryRequest struct {

@@ -72,6 +72,10 @@ func NewServer(opts Options) (*Server, error) {
 	s.mux.HandleFunc("GET /api/scan/{id}/graph", s.handleGraphAPI)
 	// Node detail API: nodeID contains colons and slashes, so use rest pattern.
 	s.mux.HandleFunc("GET /api/scan/{id}/graph/node/{nodeID...}", s.handleNodeDetail)
+	// Blast radius, simulation, and gap analysis APIs.
+	s.mux.HandleFunc("POST /api/scan/{id}/blast-radius", s.handleBlastRadius)
+	s.mux.HandleFunc("POST /api/scan/{id}/simulate", s.handleSimulate)
+	s.mux.HandleFunc("GET /api/scan/{id}/gaps", s.handleGaps)
 	// Serve static files from the embedded FS (strip the /static/ prefix so
 	// http.FileServerFS sees paths relative to the root of the FS).
 	s.mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticSubFS())))
