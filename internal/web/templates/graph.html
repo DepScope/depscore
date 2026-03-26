@@ -28,6 +28,41 @@
         <label><input type="radio" name="risk" value="HIGH"> HIGH+</label>
         <label><input type="radio" name="risk" value="CRITICAL"> CRITICAL</label>
       </div>
+      <div class="sidebar-section">
+        <h3>Blast Radius</h3>
+        <div class="tab-toggle">
+          <button class="tab active" data-tab="cve">CVE</button>
+          <button class="tab" data-tab="package">Package</button>
+        </div>
+        <div id="tab-cve" class="tab-content active">
+          <input type="text" id="blast-cve" class="sidebar-input" placeholder="CVE-2024-99999">
+        </div>
+        <div id="tab-package" class="tab-content">
+          <input type="text" id="blast-pkg" class="sidebar-input" placeholder="Package name">
+          <input type="text" id="blast-range" class="sidebar-input" placeholder=">=1.82.7,<1.83.0">
+        </div>
+        <button id="btn-blast" class="btn-danger">Analyze</button>
+        <button id="btn-blast-reset" class="btn-secondary" style="display:none">Reset</button>
+        <div id="blast-results"></div>
+      </div>
+      <div class="sidebar-section">
+        <h3>Zero-Day Simulation</h3>
+        <input type="text" id="sim-pkg" class="sidebar-input" placeholder="Package name">
+        <input type="text" id="sim-range" class="sidebar-input" placeholder="Affected version range">
+        <select id="sim-severity" class="sidebar-select">
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+        </select>
+        <textarea id="sim-desc" class="sidebar-textarea" placeholder="Description (optional)" rows="2"></textarea>
+        <button id="btn-simulate" class="btn-danger">Simulate Zero-Day</button>
+        <div id="sim-results"></div>
+      </div>
+      <div class="sidebar-section">
+        <h3>Gap Analysis</h3>
+        <button id="btn-gaps" class="btn-primary">Analyze Gaps</button>
+        <div id="gap-results"></div>
+      </div>
     </aside>
 
     <!-- Center: SVG Graph -->

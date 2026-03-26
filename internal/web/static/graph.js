@@ -655,6 +655,337 @@
   });
 
   /* =======================================================
+     Blast Radius Tab Toggle
+     ======================================================= */
+  document.querySelectorAll('.tab-toggle .tab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.tab-toggle .tab').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.remove('active'); });
+      btn.classList.add('active');
+      var tabId = 'tab-' + btn.dataset.tab;
+      var tabEl = document.getElementById(tabId);
+      if (tabEl) tabEl.classList.add('active');
+    });
+  });
+
+  /* =======================================================
+     Blast Radius: Analyze
+     ======================================================= */
+  function highlightBlast(affectedNodes, paths) {
+    if (!window._graphRefs) return;
+    var refs = window._graphRefs;
+    var affectedSet = {};
+    affectedNodes.forEach(function (id) { affectedSet[id] = true; });
+
+    // Add blast-affected and blast-dimmed classes.
+    refs.node.classed('blast-affected', function (d) { return !!affectedSet[d.id]; });
+    refs.node.classed('blast-dimmed', function (d) { return !affectedSet[d.id]; });
+
+    // Build path edge set for highlighting.
+    var pathEdges = {};
+    (paths || []).forEach(function (path) {
+      for (var i = 0; i < path.length - 1; i++) {
+        pathEdges[path[i] + '>' + path[i + 1]] = true;
+      }
+    });
+
+    refs.link.classed('blast-path', function (l) {
+      var srcId = typeof l.source === 'object' ? l.source.id : l.source;
+      var tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+      return !!pathEdges[srcId + '>' + tgtId];
+    });
+    refs.link.classed('blast-dimmed', function (l) {
+      var srcId = typeof l.source === 'object' ? l.source.id : l.source;
+      var tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+      return !affectedSet[srcId] && !affectedSet[tgtId];
+    });
+
+    refs.label.classed('blast-dimmed', function (d) { return !affectedSet[d.id]; });
+  }
+
+  function clearBlastHighlight() {
+    if (!window._graphRefs) return;
+    var refs = window._graphRefs;
+    refs.node.classed('blast-affected', false).classed('blast-dimmed', false);
+    refs.link.classed('blast-path', false).classed('blast-dimmed', false);
+    refs.label.classed('blast-dimmed', false);
+  }
+
+  function renderBlastResults(container, data) {
+    while (container.firstChild) container.removeChild(container.firstChild);
+
+    var summary = document.createElement('div');
+    summary.className = 'blast-summary';
+    summary.textContent = data.total_affected + ' affected node' + (data.total_affected !== 1 ? 's' : '') +
+      ' \u00b7 depth ' + data.blast_depth;
+    container.appendChild(summary);
+
+    if (data.affected_nodes && data.affected_nodes.length > 0) {
+      var list = document.createElement('ul');
+      list.className = 'blast-node-list';
+      data.affected_nodes.forEach(function (nodeId) {
+        var li = document.createElement('li');
+        li.className = 'blast-node-item';
+        li.textContent = nodeId;
+        li.addEventListener('click', function () {
+          var found = window._graphRefs && window._graphRefs.data.nodes.find(function (n) { return n.id === nodeId; });
+          if (found) zoomToNeighborhood(found);
+        });
+        list.appendChild(li);
+      });
+      container.appendChild(list);
+    }
+
+    if (data.paths && data.paths.length > 0) {
+      var pathH4 = document.createElement('h4');
+      pathH4.textContent = 'Exposure Paths (' + data.paths.length + ')';
+      container.appendChild(pathH4);
+      var pathList = document.createElement('ul');
+      pathList.className = 'blast-path-list';
+      data.paths.slice(0, 10).forEach(function (path) {
+        var li = document.createElement('li');
+        li.textContent = path.join(' \u2192 ');
+        pathList.appendChild(li);
+      });
+      container.appendChild(pathList);
+    }
+  }
+
+  document.getElementById('btn-blast').addEventListener('click', async function () {
+    var activeTab = document.querySelector('.tab-toggle .tab.active');
+    var mode = activeTab ? activeTab.dataset.tab : 'cve';
+    var body;
+
+    if (mode === 'cve') {
+      var cveId = document.getElementById('blast-cve').value.trim();
+      if (!cveId) return;
+      body = JSON.stringify({ mode: 'cve', cve_id: cveId });
+    } else {
+      var pkg = document.getElementById('blast-pkg').value.trim();
+      var range = document.getElementById('blast-range').value.trim();
+      if (!pkg || !range) return;
+      body = JSON.stringify({ mode: 'package', 'package': pkg, range: range });
+    }
+
+    var resultsEl = document.getElementById('blast-results');
+    while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+    var loading = document.createElement('p');
+    loading.className = 'panel-loading';
+    loading.textContent = 'Analyzing...';
+    resultsEl.appendChild(loading);
+
+    try {
+      var resp = await fetch('/api/scan/' + scanId + '/blast-radius', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body
+      });
+      var data = await resp.json();
+      if (!resp.ok) {
+        while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+        var errP = document.createElement('p');
+        errP.className = 'blast-error';
+        errP.textContent = data.error || 'Analysis failed';
+        resultsEl.appendChild(errP);
+        return;
+      }
+
+      renderBlastResults(resultsEl, data);
+      highlightBlast(data.affected_nodes || [], data.paths || []);
+      document.getElementById('btn-blast-reset').style.display = 'inline-block';
+    } catch (e) {
+      while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+      var errP2 = document.createElement('p');
+      errP2.className = 'blast-error';
+      errP2.textContent = 'Network error';
+      resultsEl.appendChild(errP2);
+    }
+  });
+
+  document.getElementById('btn-blast-reset').addEventListener('click', function () {
+    clearBlastHighlight();
+    var resultsEl = document.getElementById('blast-results');
+    while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+    document.getElementById('btn-blast-reset').style.display = 'none';
+  });
+
+  /* =======================================================
+     Zero-Day Simulation
+     ======================================================= */
+  document.getElementById('btn-simulate').addEventListener('click', async function () {
+    var pkg = document.getElementById('sim-pkg').value.trim();
+    var range = document.getElementById('sim-range').value.trim();
+    if (!pkg || !range) return;
+
+    var severity = document.getElementById('sim-severity').value;
+    var desc = document.getElementById('sim-desc').value.trim();
+
+    var resultsEl = document.getElementById('sim-results');
+    while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+    var loading = document.createElement('p');
+    loading.className = 'panel-loading';
+    loading.textContent = 'Simulating...';
+    resultsEl.appendChild(loading);
+
+    try {
+      var resp = await fetch('/api/scan/' + scanId + '/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 'package': pkg, range: range, severity: severity, description: desc })
+      });
+      var data = await resp.json();
+      if (!resp.ok) {
+        while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+        var errP = document.createElement('p');
+        errP.className = 'blast-error';
+        errP.textContent = data.error || 'Simulation failed';
+        resultsEl.appendChild(errP);
+        return;
+      }
+
+      renderBlastResults(resultsEl, data);
+      highlightBlast(data.affected_nodes || [], data.paths || []);
+      document.getElementById('btn-blast-reset').style.display = 'inline-block';
+    } catch (e) {
+      while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+      var errP2 = document.createElement('p');
+      errP2.className = 'blast-error';
+      errP2.textContent = 'Network error';
+      resultsEl.appendChild(errP2);
+    }
+  });
+
+  /* =======================================================
+     Gap Analysis
+     ======================================================= */
+  var gapColors = {
+    unpinned_action:  '#FF8800',
+    unpinned_docker:  '#00CCCC',
+    no_lockfile:      '#FFD700',
+    broad_permissions: '#8844FF',
+    script_download:  '#FF0000'
+  };
+
+  function highlightGaps(gaps) {
+    if (!window._graphRefs) return;
+    var refs = window._graphRefs;
+    var gapNodeMap = {};
+    gaps.forEach(function (g) { gapNodeMap[g.node_id] = g.type; });
+
+    refs.node.classed('gap-node', function (d) { return !!gapNodeMap[d.id]; });
+    refs.node.classed('blast-dimmed', function (d) { return !gapNodeMap[d.id]; });
+    refs.node.style('stroke', function (d) {
+      if (gapNodeMap[d.id]) return gapColors[gapNodeMap[d.id]] || '#FF8800';
+      return null;
+    });
+    refs.node.style('stroke-width', function (d) {
+      return gapNodeMap[d.id] ? '3px' : null;
+    });
+  }
+
+  function clearGapHighlight() {
+    if (!window._graphRefs) return;
+    var refs = window._graphRefs;
+    refs.node.classed('gap-node', false).classed('blast-dimmed', false);
+    refs.node.style('stroke', null).style('stroke-width', null);
+  }
+
+  document.getElementById('btn-gaps').addEventListener('click', async function () {
+    var resultsEl = document.getElementById('gap-results');
+    while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+    var loading = document.createElement('p');
+    loading.className = 'panel-loading';
+    loading.textContent = 'Analyzing gaps...';
+    resultsEl.appendChild(loading);
+
+    try {
+      var resp = await fetch('/api/scan/' + scanId + '/gaps');
+      var data = await resp.json();
+      if (!resp.ok) {
+        while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+        var errP = document.createElement('p');
+        errP.className = 'blast-error';
+        errP.textContent = data.error || 'Gap analysis failed';
+        resultsEl.appendChild(errP);
+        return;
+      }
+
+      while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+
+      // Summary.
+      var summary = data.summary || {};
+      var summaryDiv = document.createElement('div');
+      summaryDiv.className = 'gap-summary';
+      var totalGaps = (data.gaps || []).length;
+      var summaryText = document.createElement('p');
+      summaryText.textContent = totalGaps + ' gap' + (totalGaps !== 1 ? 's' : '') + ' found';
+      summaryDiv.appendChild(summaryText);
+
+      Object.keys(summary).forEach(function (type) {
+        if (summary[type] > 0) {
+          var row = document.createElement('div');
+          row.className = 'gap-summary-row';
+          var dot = document.createElement('span');
+          dot.className = 'gap-dot';
+          dot.style.background = gapColors[type] || '#888';
+          row.appendChild(dot);
+          var label = document.createElement('span');
+          label.textContent = type.replace(/_/g, ' ') + ': ' + summary[type];
+          row.appendChild(label);
+          summaryDiv.appendChild(row);
+        }
+      });
+      resultsEl.appendChild(summaryDiv);
+
+      // Gap list.
+      if (data.gaps && data.gaps.length > 0) {
+        var list = document.createElement('ul');
+        list.className = 'gap-list';
+        data.gaps.forEach(function (gap) {
+          var li = document.createElement('li');
+          li.className = 'gap-item';
+          var dot = document.createElement('span');
+          dot.className = 'gap-dot';
+          dot.style.background = gapColors[gap.type] || '#888';
+          li.appendChild(dot);
+          var text = document.createElement('span');
+          text.textContent = gap.node_id;
+          li.appendChild(text);
+          var detail = document.createElement('span');
+          detail.className = 'gap-detail';
+          detail.textContent = gap.detail;
+          li.appendChild(detail);
+          li.addEventListener('click', function () {
+            var found = window._graphRefs && window._graphRefs.data.nodes.find(function (n) { return n.id === gap.node_id; });
+            if (found) zoomToNeighborhood(found);
+          });
+          list.appendChild(li);
+        });
+        resultsEl.appendChild(list);
+
+        // Add reset button.
+        var resetBtn = document.createElement('button');
+        resetBtn.className = 'btn-secondary';
+        resetBtn.textContent = 'Reset';
+        resetBtn.style.marginTop = '8px';
+        resetBtn.addEventListener('click', function () {
+          clearGapHighlight();
+          while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+        });
+        resultsEl.appendChild(resetBtn);
+
+        highlightGaps(data.gaps);
+      }
+    } catch (e) {
+      while (resultsEl.firstChild) resultsEl.removeChild(resultsEl.firstChild);
+      var errP2 = document.createElement('p');
+      errP2.className = 'blast-error';
+      errP2.textContent = 'Network error';
+      resultsEl.appendChild(errP2);
+    }
+  });
+
+  /* =======================================================
      Start
      ======================================================= */
   // Wait for D3 to be available (CDN or fallback)
