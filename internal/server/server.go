@@ -22,14 +22,16 @@ const (
 
 // Options configures the server.
 type Options struct {
-	Store store.ScanStore
-	Mode  Mode
+	Store      store.ScanStore
+	GraphStore store.GraphStore
+	Mode       Mode
 }
 
 // Server is the HTTP handler for the depscope web interface.
 type Server struct {
-	store store.ScanStore
-	mode  Mode
+	store      store.ScanStore
+	graphStore store.GraphStore
+	mode       Mode
 	// base is the layout-only template; each page is cloned from it.
 	base *template.Template
 	mux  *http.ServeMux
@@ -38,9 +40,10 @@ type Server struct {
 // NewServer creates and configures a new Server.
 func NewServer(opts Options) (*Server, error) {
 	s := &Server{
-		store: opts.Store,
-		mode:  opts.Mode,
-		mux:   http.NewServeMux(),
+		store:      opts.Store,
+		graphStore: opts.GraphStore,
+		mode:       opts.Mode,
+		mux:        http.NewServeMux(),
 	}
 
 	funcMap := template.FuncMap{
@@ -60,10 +63,19 @@ func NewServer(opts Options) (*Server, error) {
 	s.mux.HandleFunc("GET /", s.handleLanding)
 	s.mux.HandleFunc("POST /scan", s.handleSubmitScan)
 	s.mux.HandleFunc("GET /scan/{id}", s.handleScanPage)
+	s.mux.HandleFunc("GET /scan/{id}/graph", s.handleGraphPage)
 	s.mux.HandleFunc("GET /api/scan/{id}", s.handleScanStatus)
 	// Route for package detail: /api/package/{eco}/{name...}
 	// The handler splits the last path segment as the version.
 	s.mux.HandleFunc("GET /api/package/{eco}/{rest...}", s.handlePackageDetail)
+	// Graph API: D3-friendly JSON for the full graph.
+	s.mux.HandleFunc("GET /api/scan/{id}/graph", s.handleGraphAPI)
+	// Node detail API: nodeID contains colons and slashes, so use rest pattern.
+	s.mux.HandleFunc("GET /api/scan/{id}/graph/node/{nodeID...}", s.handleNodeDetail)
+	// Blast radius, simulation, and gap analysis APIs.
+	s.mux.HandleFunc("POST /api/scan/{id}/blast-radius", s.handleBlastRadius)
+	s.mux.HandleFunc("POST /api/scan/{id}/simulate", s.handleSimulate)
+	s.mux.HandleFunc("GET /api/scan/{id}/gaps", s.handleGaps)
 	// Serve static files from the embedded FS (strip the /static/ prefix so
 	// http.FileServerFS sees paths relative to the root of the FS).
 	s.mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticSubFS())))

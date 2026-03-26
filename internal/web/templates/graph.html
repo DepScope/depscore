@@ -1,0 +1,101 @@
+{{define "content"}}
+<div class="graph-page">
+  <!-- Header -->
+  <div class="graph-header">
+    <a href="/scan/{{.ScanID}}" class="back-link">&larr; Back to Table</a>
+    <span class="scan-url">{{.URL}}</span>
+    <span id="graph-stats" class="graph-stats"></span>
+  </div>
+
+  <div class="graph-layout">
+    <!-- Left Sidebar (280px, collapsible) -->
+    <aside id="sidebar" class="graph-sidebar">
+      <div class="sidebar-section">
+        <h3>Search</h3>
+        <input type="text" id="node-search" placeholder="Search nodes..." />
+      </div>
+      <div class="sidebar-section">
+        <h3>Node Types</h3>
+        <label><input type="checkbox" class="type-filter" value="package" checked> Packages <span id="count-package"></span></label>
+        <label><input type="checkbox" class="type-filter" value="action" checked> Actions <span id="count-action"></span></label>
+        <label><input type="checkbox" class="type-filter" value="workflow" checked> Workflows <span id="count-workflow"></span></label>
+        <label><input type="checkbox" class="type-filter" value="docker_image" checked> Docker <span id="count-docker_image"></span></label>
+        <label><input type="checkbox" class="type-filter" value="script_download" checked> Scripts <span id="count-script_download"></span></label>
+      </div>
+      <div class="sidebar-section">
+        <h3>Risk Filter</h3>
+        <label><input type="radio" name="risk" value="" checked> All</label>
+        <label><input type="radio" name="risk" value="HIGH"> HIGH+</label>
+        <label><input type="radio" name="risk" value="CRITICAL"> CRITICAL</label>
+      </div>
+      <div class="sidebar-section">
+        <h3>Blast Radius</h3>
+        <div class="tab-toggle">
+          <button class="tab active" data-tab="cve">CVE</button>
+          <button class="tab" data-tab="package">Package</button>
+        </div>
+        <div id="tab-cve" class="tab-content active">
+          <input type="text" id="blast-cve" class="sidebar-input" placeholder="CVE-2024-99999">
+        </div>
+        <div id="tab-package" class="tab-content">
+          <input type="text" id="blast-pkg" class="sidebar-input" placeholder="Package name">
+          <input type="text" id="blast-range" class="sidebar-input" placeholder=">=1.82.7,<1.83.0">
+        </div>
+        <button id="btn-blast" class="btn-danger">Analyze</button>
+        <button id="btn-blast-reset" class="btn-secondary" style="display:none">Reset</button>
+        <div id="blast-results"></div>
+      </div>
+      <div class="sidebar-section">
+        <h3>Zero-Day Simulation</h3>
+        <input type="text" id="sim-pkg" class="sidebar-input" placeholder="Package name">
+        <input type="text" id="sim-range" class="sidebar-input" placeholder="Affected version range">
+        <select id="sim-severity" class="sidebar-select">
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+        </select>
+        <textarea id="sim-desc" class="sidebar-textarea" placeholder="Description (optional)" rows="2"></textarea>
+        <button id="btn-simulate" class="btn-danger">Simulate Zero-Day</button>
+        <div id="sim-results"></div>
+      </div>
+      <div class="sidebar-section">
+        <h3>Gap Analysis</h3>
+        <button id="btn-gaps" class="btn-primary">Analyze Gaps</button>
+        <div id="gap-results"></div>
+      </div>
+    </aside>
+
+    <!-- Center: SVG Graph -->
+    <div id="graph-container" class="graph-container">
+      <svg id="graph-canvas" data-scan-id="{{.ScanID}}"></svg>
+      <div id="tooltip" class="graph-tooltip" style="display:none;"></div>
+    </div>
+
+    <!-- Right: Detail Panel (hidden by default) -->
+    <div id="detail-panel" class="detail-panel hidden">
+      <button id="close-panel" class="close-btn">&times;</button>
+      <div id="panel-content"></div>
+    </div>
+  </div>
+
+  <!-- Bottom Bar -->
+  <div class="graph-footer">
+    <button id="btn-sidebar-toggle" title="Toggle sidebar">&#9776;</button>
+    <button id="btn-fit" title="Fit to view">Fit</button>
+    <button id="btn-zoom-in" title="Zoom in">+</button>
+    <button id="btn-zoom-out" title="Zoom out">&minus;</button>
+    <div class="legend">
+      <span class="legend-item"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#888"/></svg> Package</span>
+      <span class="legend-item"><svg width="12" height="12"><polygon points="6,1 11,6 6,11 1,6" fill="#888"/></svg> Action</span>
+      <span class="legend-item"><svg width="12" height="12"><rect x="1" y="1" width="10" height="10" fill="#888"/></svg> Workflow</span>
+      <span class="legend-item"><svg width="12" height="12"><polygon points="6,1 11,4 11,9 6,12 1,9 1,4" fill="#888"/></svg> Docker</span>
+      <span class="legend-item"><svg width="12" height="12"><polygon points="6,1 11,11 1,11" fill="#888"/></svg> Script</span>
+    </div>
+  </div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"
+        onerror="var s=document.createElement('script');s.src='/static/d3.v7.min.js';document.head.appendChild(s);"></script>
+<script src="/static/graph.js"></script>
+<link rel="stylesheet" href="/static/graph.css">
+{{end}}

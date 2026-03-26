@@ -324,6 +324,23 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   font-size: 13px;
 }
 
+.btn-graph {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--transition), color var(--transition);
+}
+.btn-graph:hover {
+  background: rgba(88, 166, 255, 0.15);
+  text-decoration: none;
+}
+
 /* ── Stats ── */
 .results-stats {
   display: flex;

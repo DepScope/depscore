@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/depscope/depscope/internal/core"
+	"github.com/depscope/depscope/internal/graph"
 	"github.com/depscope/depscope/internal/scanner"
 	"github.com/depscope/depscope/internal/server/store"
 )
@@ -27,8 +28,15 @@ type scanningData struct {
 // resultsData is the template data for the results page.
 type resultsData struct {
 	URL    string
+	ScanID string
 	Result interface{} // *core.ScanResult or nil
 	Error  string
+}
+
+// graphPageData is the template data for the graph page.
+type graphPageData struct {
+	URL    string
+	ScanID string
 }
 
 // scanStatusResponse is the JSON body for GET /api/scan/{id}.
@@ -97,9 +105,9 @@ func (s *Server) handleScanPage(w http.ResponseWriter, r *http.Request) {
 	case "queued", "running":
 		s.renderTemplate(w, r, "scanning.html", scanningData{URL: job.URL, ID: job.ID})
 	case "complete":
-		s.renderTemplate(w, r, "results.html", resultsData{URL: job.URL, Result: job.Result})
+		s.renderTemplate(w, r, "results.html", resultsData{URL: job.URL, ScanID: id, Result: job.Result})
 	case "failed":
-		s.renderTemplate(w, r, "results.html", resultsData{URL: job.URL, Error: job.Error})
+		s.renderTemplate(w, r, "results.html", resultsData{URL: job.URL, ScanID: id, Error: job.Error})
 	default:
 		s.renderTemplate(w, r, "scanning.html", scanningData{URL: job.URL, ID: job.ID})
 	}
@@ -154,6 +162,37 @@ func (s *Server) runScan(ctx context.Context, id, rawURL, profile string) {
 	}
 
 	_ = s.store.SaveResult(id, result)
+
+	if s.graphStore != nil && result.Graph != nil {
+		if g, ok := result.Graph.(*graph.Graph); ok {
+			nodes := make([]store.GraphNode, 0, len(g.Nodes))
+			for _, n := range g.Nodes {
+				nodes = append(nodes, store.GraphNode{
+					NodeID:   n.ID,
+					Type:     n.Type.String(),
+					Name:     n.Name,
+					Version:  n.Version,
+					Ref:      n.Ref,
+					Score:    n.Score,
+					Risk:     string(n.Risk),
+					Pinning:  n.Pinning.String(),
+					Metadata: n.Metadata,
+				})
+			}
+			edges := make([]store.GraphEdge, 0, len(g.Edges))
+			for _, e := range g.Edges {
+				edges = append(edges, store.GraphEdge{
+					From:  e.From,
+					To:    e.To,
+					Type:  e.Type.String(),
+					Depth: e.Depth,
+				})
+			}
+			if err := s.graphStore.SaveGraph(id, nodes, edges); err != nil {
+				log.Printf("save graph for scan %s: %v", id, err)
+			}
+		}
+	}
 }
 
 // packageDetailResponse is the JSON body for GET /api/package/{eco}/{rest...}.
@@ -256,6 +295,331 @@ outer:
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// d3Node is the D3-friendly representation of a graph node.
+type d3Node struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Score   int    `json:"score"`
+	Risk    string `json:"risk"`
+	Pinning string `json:"pinning"`
+	Group   string `json:"group"`
+}
+
+// d3Link is the D3-friendly representation of a graph edge.
+type d3Link struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Type   string `json:"type"`
+	Depth  int    `json:"depth"`
+}
+
+// d3GraphResponse is the full D3-friendly graph response.
+type d3GraphResponse struct {
+	Nodes   []d3Node          `json:"nodes"`
+	Links   []d3Link          `json:"links"`
+	Summary map[string]any    `json:"summary"`
+}
+
+// handleGraphAPI handles GET /api/scan/{id}/graph.
+// Returns D3-friendly JSON with nodes, links, and a summary.
+func (s *Server) handleGraphAPI(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	job, err := s.store.Get(id)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "scan not found"})
+		return
+	}
+
+	var nodes []d3Node
+	var links []d3Link
+
+	if s.graphStore != nil {
+		// Load from persistent store.
+		storeNodes, storeEdges, err := s.graphStore.LoadGraph(id)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to load graph"})
+			return
+		}
+		nodes = make([]d3Node, 0, len(storeNodes))
+		for _, n := range storeNodes {
+			nodes = append(nodes, storeNodeToD3(n))
+		}
+		links = make([]d3Link, 0, len(storeEdges))
+		for _, e := range storeEdges {
+			links = append(links, d3Link{
+				Source: e.From,
+				Target: e.To,
+				Type:   e.Type,
+				Depth:  e.Depth,
+			})
+		}
+	} else if job.Result != nil && job.Result.Graph != nil {
+		// Fall back to in-memory graph from the scan result.
+		g, ok := job.Result.Graph.(*graph.Graph)
+		if !ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "graph type error"})
+			return
+		}
+		nodes = make([]d3Node, 0, len(g.Nodes))
+		for _, n := range g.Nodes {
+			nodes = append(nodes, graphNodeToD3(n))
+		}
+		links = make([]d3Link, 0, len(g.Edges))
+		for _, e := range g.Edges {
+			links = append(links, d3Link{
+				Source: e.From,
+				Target: e.To,
+				Type:   e.Type.String(),
+				Depth:  e.Depth,
+			})
+		}
+	}
+
+	if nodes == nil {
+		nodes = []d3Node{}
+	}
+	if links == nil {
+		links = []d3Link{}
+	}
+
+	// Build summary counts by node type.
+	byType := make(map[string]int)
+	for _, n := range nodes {
+		byType[n.Type]++
+	}
+	byTypeAny := make(map[string]any, len(byType))
+	for k, v := range byType {
+		byTypeAny[k] = v
+	}
+
+	resp := d3GraphResponse{
+		Nodes: nodes,
+		Links: links,
+		Summary: map[string]any{
+			"total_nodes": len(nodes),
+			"total_edges": len(links),
+			"by_type":     byTypeAny,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// nodeDetailEdge is an edge in the node detail response.
+type nodeDetailEdgeOut struct {
+	To   string `json:"to"`
+	Type string `json:"type"`
+}
+
+type nodeDetailEdgeIn struct {
+	From string `json:"from"`
+	Type string `json:"type"`
+}
+
+// nodeDetailResponse is the JSON body for GET /api/scan/{id}/graph/node/{nodeID...}.
+type nodeDetailResponse struct {
+	ID            string              `json:"id"`
+	Type          string              `json:"type"`
+	Name          string              `json:"name"`
+	Version       string              `json:"version"`
+	Score         int                 `json:"score"`
+	Risk          string              `json:"risk"`
+	Pinning       string              `json:"pinning"`
+	Metadata      map[string]any      `json:"metadata"`
+	OutgoingEdges []nodeDetailEdgeOut `json:"outgoing_edges"`
+	IncomingEdges []nodeDetailEdgeIn  `json:"incoming_edges"`
+}
+
+// handleNodeDetail handles GET /api/scan/{id}/graph/node/{nodeID...}.
+// nodeID may contain colons and slashes (e.g., "package:python/litellm@1.82.8").
+func (s *Server) handleNodeDetail(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	nodeID := r.PathValue("nodeID")
+
+	if nodeID == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "node ID required"})
+		return
+	}
+
+	job, err := s.store.Get(id)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "scan not found"})
+		return
+	}
+
+	var resp *nodeDetailResponse
+
+	if s.graphStore != nil {
+		storeNodes, storeEdges, err := s.graphStore.LoadGraph(id)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to load graph"})
+			return
+		}
+		for _, n := range storeNodes {
+			if n.NodeID == nodeID {
+				outgoing := []nodeDetailEdgeOut{}
+				incoming := []nodeDetailEdgeIn{}
+				for _, e := range storeEdges {
+					if e.From == nodeID {
+						outgoing = append(outgoing, nodeDetailEdgeOut{To: e.To, Type: e.Type})
+					}
+					if e.To == nodeID {
+						incoming = append(incoming, nodeDetailEdgeIn{From: e.From, Type: e.Type})
+					}
+				}
+				meta := n.Metadata
+				if meta == nil {
+					meta = map[string]any{}
+				}
+				resp = &nodeDetailResponse{
+					ID:            n.NodeID,
+					Type:          n.Type,
+					Name:          n.Name,
+					Version:       n.Version,
+					Score:         n.Score,
+					Risk:          n.Risk,
+					Pinning:       n.Pinning,
+					Metadata:      meta,
+					OutgoingEdges: outgoing,
+					IncomingEdges: incoming,
+				}
+				break
+			}
+		}
+	} else if job.Result != nil && job.Result.Graph != nil {
+		g, ok := job.Result.Graph.(*graph.Graph)
+		if !ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "graph type error"})
+			return
+		}
+		n := g.Node(nodeID)
+		if n != nil {
+			outgoing := []nodeDetailEdgeOut{}
+			incoming := []nodeDetailEdgeIn{}
+			for _, e := range g.Edges {
+				if e.From == nodeID {
+					outgoing = append(outgoing, nodeDetailEdgeOut{To: e.To, Type: e.Type.String()})
+				}
+				if e.To == nodeID {
+					incoming = append(incoming, nodeDetailEdgeIn{From: e.From, Type: e.Type.String()})
+				}
+			}
+			meta := n.Metadata
+			if meta == nil {
+				meta = map[string]any{}
+			}
+			resp = &nodeDetailResponse{
+				ID:            n.ID,
+				Type:          n.Type.String(),
+				Name:          n.Name,
+				Version:       n.Version,
+				Score:         n.Score,
+				Risk:          string(n.Risk),
+				Pinning:       n.Pinning.String(),
+				Metadata:      meta,
+				OutgoingEdges: outgoing,
+				IncomingEdges: incoming,
+			}
+		}
+	}
+
+	if resp == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "node not found"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleGraphPage renders the graph visualization page.
+func (s *Server) handleGraphPage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	job, err := s.store.Get(id)
+	if err != nil || job == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.renderTemplate(w, r, "graph.html", graphPageData{URL: job.URL, ScanID: id})
+}
+
+// storeNodeToD3 converts a store.GraphNode to a D3-friendly node.
+func storeNodeToD3(n store.GraphNode) d3Node {
+	return d3Node{
+		ID:      n.NodeID,
+		Type:    n.Type,
+		Name:    n.Name,
+		Version: n.Version,
+		Score:   n.Score,
+		Risk:    n.Risk,
+		Pinning: n.Pinning,
+		Group:   groupFromStoreNode(n),
+	}
+}
+
+// graphNodeToD3 converts a *graph.Node to a D3-friendly node.
+func graphNodeToD3(n *graph.Node) d3Node {
+	return d3Node{
+		ID:      n.ID,
+		Type:    n.Type.String(),
+		Name:    n.Name,
+		Version: n.Version,
+		Score:   n.Score,
+		Risk:    string(n.Risk),
+		Pinning: n.Pinning.String(),
+		Group:   groupFromGraphNode(n),
+	}
+}
+
+// groupFromStoreNode derives a D3 group label from a store node.
+// For packages the group is the ecosystem derived from the node ID prefix.
+func groupFromStoreNode(n store.GraphNode) string {
+	if n.Type != "package" {
+		return n.Type
+	}
+	// NodeID format: "package:<ecosystem>/<name>@<version>"
+	return ecosystemFromID(n.NodeID)
+}
+
+// groupFromGraphNode derives a D3 group label from a graph.Node.
+func groupFromGraphNode(n *graph.Node) string {
+	if n.Type != graph.NodePackage {
+		return n.Type.String()
+	}
+	return ecosystemFromID(n.ID)
+}
+
+// ecosystemFromID extracts the ecosystem from a node ID like "package:go/cobra@v1.10.2".
+func ecosystemFromID(nodeID string) string {
+	// Strip "package:" prefix.
+	rest := strings.TrimPrefix(nodeID, "package:")
+	// Ecosystem is up to the first "/".
+	if slash := strings.Index(rest, "/"); slash >= 0 {
+		return rest[:slash]
+	}
+	return rest
 }
 
 // generateID returns a 16-character lowercase hex string from 8 random bytes.

@@ -18,8 +18,9 @@ var serverCmd = &cobra.Command{
 
 func init() {
 	serverCmd.Flags().Int("port", 8080, "port to listen on")
-	serverCmd.Flags().String("store", "memory", "storage backend: memory, dynamo")
+	serverCmd.Flags().String("store", "memory", "storage backend: memory, sqlite, dynamo")
 	serverCmd.Flags().String("table", "depscope-scans", "DynamoDB table name")
+	serverCmd.Flags().String("db-path", "./depscope.db", "SQLite database file path")
 	rootCmd.AddCommand(serverCmd)
 }
 
@@ -28,10 +29,19 @@ func runServer(cmd *cobra.Command, args []string) error {
 	storeName, _ := cmd.Flags().GetString("store")
 
 	var (
-		s   store.ScanStore
-		err error
+		s          store.ScanStore
+		graphStore store.GraphStore
+		err        error
 	)
 	switch storeName {
+	case "sqlite":
+		dbPath, _ := cmd.Flags().GetString("db-path")
+		sq, sqErr := store.NewSQLiteStore(dbPath)
+		if sqErr != nil {
+			return fmt.Errorf("create sqlite store: %w", sqErr)
+		}
+		s = sq
+		graphStore = sq
 	case "dynamo":
 		tableName, _ := cmd.Flags().GetString("table")
 		s, err = store.NewDynamoStore(cmd.Context(), tableName)
@@ -43,8 +53,9 @@ func runServer(cmd *cobra.Command, args []string) error {
 	}
 
 	srv, err := server.NewServer(server.Options{
-		Store: s,
-		Mode:  server.ModeLocal,
+		Store:      s,
+		GraphStore: graphStore,
+		Mode:       server.ModeLocal,
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)

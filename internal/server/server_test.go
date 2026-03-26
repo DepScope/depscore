@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/depscope/depscope/internal/core"
+	"github.com/depscope/depscope/internal/graph"
 	"github.com/depscope/depscope/internal/server"
 	"github.com/depscope/depscope/internal/server/store"
 )
@@ -404,4 +405,264 @@ func TestStaticAssets(t *testing.T) {
 	if !strings.Contains(ct, "text/css") {
 		t.Errorf("expected text/css Content-Type, got %q", ct)
 	}
+}
+
+// newScanWithGraph creates a scan job in the store whose result contains a
+// small in-memory graph and returns the job ID.
+func newScanWithGraph(t *testing.T, st store.ScanStore) string {
+	t.Helper()
+
+	const jobID = "graph0000test0001"
+	if err := st.Create(jobID, store.ScanRequest{URL: "https://github.com/test/graph-repo", Profile: "enterprise"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	g := graph.New()
+	g.AddNode(&graph.Node{
+		ID:      "package:go/cobra@v1.10.2",
+		Type:    graph.NodePackage,
+		Name:    "cobra",
+		Version: "v1.10.2",
+		Score:   64,
+		Risk:    core.RiskMedium,
+		Pinning: graph.PinningNA,
+	})
+	g.AddNode(&graph.Node{
+		ID:      "package:go/yaml@v3.0.1",
+		Type:    graph.NodePackage,
+		Name:    "yaml",
+		Version: "v3.0.1",
+		Score:   80,
+		Risk:    core.RiskLow,
+		Pinning: graph.PinningNA,
+	})
+	g.AddEdge(&graph.Edge{
+		From:  "package:go/cobra@v1.10.2",
+		To:    "package:go/yaml@v3.0.1",
+		Type:  graph.EdgeDependsOn,
+		Depth: 0,
+	})
+
+	result := &core.ScanResult{
+		Profile:    "enterprise",
+		DirectDeps: 1,
+		Graph:      g,
+	}
+	if err := st.SaveResult(jobID, result); err != nil {
+		t.Fatalf("SaveResult: %v", err)
+	}
+	return jobID
+}
+
+func TestGraphAPI(t *testing.T) {
+	st := store.NewMemoryStore()
+	jobID := newScanWithGraph(t, st)
+
+	srv, err := server.NewServer(server.Options{Store: st, Mode: server.ModeLocal})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	t.Run("returns_d3_json", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/api/scan/" + jobID + "/graph")
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+		}
+
+		ct := resp.Header.Get("Content-Type")
+		if !strings.Contains(ct, "application/json") {
+			t.Errorf("expected JSON Content-Type, got %q", ct)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode JSON: %v", err)
+		}
+
+		// Must have nodes, links, summary.
+		if _, ok := payload["nodes"]; !ok {
+			t.Error("response missing 'nodes' field")
+		}
+		if _, ok := payload["links"]; !ok {
+			t.Error("response missing 'links' field")
+		}
+		summary, ok := payload["summary"].(map[string]any)
+		if !ok {
+			t.Fatal("response missing or invalid 'summary' field")
+		}
+
+		totalNodes, _ := summary["total_nodes"].(float64)
+		if int(totalNodes) != 2 {
+			t.Errorf("summary.total_nodes: got %v, want 2", totalNodes)
+		}
+		totalEdges, _ := summary["total_edges"].(float64)
+		if int(totalEdges) != 1 {
+			t.Errorf("summary.total_edges: got %v, want 1", totalEdges)
+		}
+	})
+
+	t.Run("nodes_have_d3_fields", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/api/scan/" + jobID + "/graph")
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+
+		type graphResp struct {
+			Nodes []map[string]any `json:"nodes"`
+			Links []map[string]any `json:"links"`
+		}
+		var gr graphResp
+		if err := json.NewDecoder(resp.Body).Decode(&gr); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+
+		if len(gr.Nodes) != 2 {
+			t.Fatalf("expected 2 nodes, got %d", len(gr.Nodes))
+		}
+
+		// Each node must have id, type, name, version, score, risk, pinning, group.
+		for _, n := range gr.Nodes {
+			for _, field := range []string{"id", "type", "name", "version", "score", "risk", "pinning", "group"} {
+				if _, ok := n[field]; !ok {
+					t.Errorf("node %v missing field %q", n["id"], field)
+				}
+			}
+		}
+
+		if len(gr.Links) != 1 {
+			t.Fatalf("expected 1 link, got %d", len(gr.Links))
+		}
+
+		link := gr.Links[0]
+		// D3 links use source/target, not from/to.
+		if _, ok := link["source"]; !ok {
+			t.Error("link missing 'source' field")
+		}
+		if _, ok := link["target"]; !ok {
+			t.Error("link missing 'target' field")
+		}
+		if link["source"] != "package:go/cobra@v1.10.2" {
+			t.Errorf("link source: got %v, want package:go/cobra@v1.10.2", link["source"])
+		}
+		if link["target"] != "package:go/yaml@v3.0.1" {
+			t.Errorf("link target: got %v, want package:go/yaml@v3.0.1", link["target"])
+		}
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/api/scan/doesnotexist/graph")
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestNodeDetailAPI(t *testing.T) {
+	st := store.NewMemoryStore()
+	jobID := newScanWithGraph(t, st)
+
+	srv, err := server.NewServer(server.Options{Store: st, Mode: server.ModeLocal})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	t.Run("found_node_with_slash_in_id", func(t *testing.T) {
+		// nodeID "package:go/cobra@v1.10.2" contains both ":" and "/"
+		resp, err := http.Get(ts.URL + "/api/scan/" + jobID + "/graph/node/package:go/cobra@v1.10.2")
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+		}
+
+		ct := resp.Header.Get("Content-Type")
+		if !strings.Contains(ct, "application/json") {
+			t.Errorf("expected JSON Content-Type, got %q", ct)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode JSON: %v", err)
+		}
+
+		if got := payload["id"]; got != "package:go/cobra@v1.10.2" {
+			t.Errorf("id: got %v, want package:go/cobra@v1.10.2", got)
+		}
+		if got := payload["name"]; got != "cobra" {
+			t.Errorf("name: got %v, want cobra", got)
+		}
+		if got := payload["version"]; got != "v1.10.2" {
+			t.Errorf("version: got %v, want v1.10.2", got)
+		}
+		if got, _ := payload["score"].(float64); int(got) != 64 {
+			t.Errorf("score: got %v, want 64", got)
+		}
+		if got := payload["risk"]; got != "MEDIUM" {
+			t.Errorf("risk: got %v, want MEDIUM", got)
+		}
+		if _, ok := payload["outgoing_edges"]; !ok {
+			t.Error("response missing 'outgoing_edges'")
+		}
+		if _, ok := payload["incoming_edges"]; !ok {
+			t.Error("response missing 'incoming_edges'")
+		}
+
+		// cobra depends on yaml, so outgoing_edges should have one entry.
+		outgoing, _ := payload["outgoing_edges"].([]any)
+		if len(outgoing) != 1 {
+			t.Errorf("expected 1 outgoing edge, got %d", len(outgoing))
+		} else {
+			edge, _ := outgoing[0].(map[string]any)
+			if edge["to"] != "package:go/yaml@v3.0.1" {
+				t.Errorf("outgoing edge to: got %v, want package:go/yaml@v3.0.1", edge["to"])
+			}
+		}
+
+		// cobra has no incoming edges.
+		incoming, _ := payload["incoming_edges"].([]any)
+		if len(incoming) != 0 {
+			t.Errorf("expected 0 incoming edges for cobra, got %d", len(incoming))
+		}
+	})
+
+	t.Run("scan_not_found", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/api/scan/doesnotexist/graph/node/package:go/cobra@v1.10.2")
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("node_not_found", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/api/scan/" + jobID + "/graph/node/package:go/nonexistent@v0.0.0")
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", resp.StatusCode)
+		}
+	})
 }
