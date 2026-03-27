@@ -47,6 +47,8 @@
 | `cmd/depscope/tree_cmd.go` | `depscope tree` subcommand |
 | `internal/tui/walker.go` | TUI tree walker view |
 
+**Note:** Resolver packages use `internal/crawler/resolvers/` (flat, one file per resolver) instead of the spec's per-resolver packages (`internal/crawler/precommit/` etc.). This is intentional — avoids circular imports and excessive inter-package dependencies.
+
 ### Modified files
 
 | File | Changes |
@@ -54,15 +56,28 @@
 | `internal/graph/types.go` | Add 5 node types, 5 edge types, PinningSemverRange, ProjectID/VersionKey on Node |
 | `internal/graph/types_test.go` | Update for new types |
 | `internal/graph/builder.go` | Update Node construction to include ProjectID/VersionKey |
-| `internal/config/config.go` | Add TrustedOrgs, Auth, ConcurrencyConfig to Config |
+| `internal/actions/scan.go` | Add ProjectID/VersionKey empty strings to all Node literals (10+ sites) |
+| `internal/actions/summary_test.go` | Add ProjectID/VersionKey to test Node literals (5 sites) |
+| `internal/server/blast.go` | Add ProjectID/VersionKey to Node literals (1 site) |
+| `internal/server/blast_test.go` | Add ProjectID/VersionKey to test Node literals (5 sites) |
+| `internal/server/gaps_test.go` | Add ProjectID/VersionKey to test Node literals (10 sites) |
+| `internal/server/server_test.go` | Add ProjectID/VersionKey to test Node literals (2 sites) |
+| `internal/server/store/sqlite.go` | Add graph_nodes ProjectID/VersionKey columns, update SaveGraph/LoadGraph, schema migration |
+| `internal/server/store/store.go` | Add ProjectID/VersionKey to GraphNode struct |
+| `internal/server/store/sqlite_test.go` | Update test Node literals |
+| `internal/tui/model_test.go` | Add ProjectID/VersionKey to test Node literals (5 sites) |
+| `internal/tui/graphview/view_test.go` | Add ProjectID/VersionKey to test Node literals (3 sites) |
+| `internal/tui/graphview/layout_test.go` | Add ProjectID/VersionKey to test Node literals (5 sites) |
+| `internal/tui/graphview/render_test.go` | Add ProjectID/VersionKey to test Node literal (1 site) |
+| `internal/report/json_test.go` | Add ProjectID/VersionKey to test Node literals (2 sites) |
+| `internal/config/config.go` | Add TrustedOrgs, Auth (replaces Registries.GitHubToken), ConcurrencyConfig |
 | `internal/config/config_test.go` | Tests for new config fields |
 | `internal/scanner/scanner.go` | Refactor ScanDir/ScanURL to use Crawler |
 | `internal/scanner/scanner_test.go` | Update tests |
 | `internal/discover/discover.go` | Add cache-first query path |
 | `cmd/depscope/main.go` | Register `tree` subcommand |
 | `cmd/depscope/cache_cmd.go` | Add `prune` subcommand |
-| `cmd/depscope/scan.go` | Wire new config options |
-| `internal/server/store/sqlite.go` | Add graph_nodes ProjectID/VersionKey columns |
+| `cmd/depscope/scan.go` | Wire new config options (auth from Auth, not Registries) |
 | `internal/web/static/graph.js` | Clustering, filtering, depth control |
 | `internal/web/templates/graph.html` | Filter panel, sidebar, depth slider |
 | `internal/tui/model.go` | Add walker view mode |
@@ -205,24 +220,47 @@ VersionKey string // FK → cache project_versions.version_key
 Run: `cd /Users/jjverhoeks/src/tries/2026-03-20-supplychain-validation && go test ./internal/graph/ -v`
 Expected: all tests pass (including existing ones)
 
-- [ ] **Step 5: Fix existing Node construction sites**
+- [ ] **Step 5: Fix ALL existing Node construction sites**
 
-Update `internal/graph/builder.go` `BuildFromScanResult` — add empty `ProjectID`/`VersionKey` to the Node literal (these get populated by the crawler, but existing code paths must compile):
-```go
-ProjectID:  "",
-VersionKey: "",
-```
+Adding fields to the `Node` struct breaks every `&graph.Node{...}` literal in the codebase (Go requires all fields or keyed literals). Run `grep -rn 'graph.Node{' internal/ --include='*.go'` to find them all. Add `ProjectID: "", VersionKey: ""` to each.
 
-Also check and update any Node construction in `internal/actions/scan.go` and `internal/server/store/sqlite.go`.
+Known sites (40+):
+- `internal/graph/builder.go` — `BuildFromScanResult` (1 site)
+- `internal/actions/scan.go` — workflow/action/docker/script node construction (10+ sites)
+- `internal/actions/summary_test.go` — test fixtures (5 sites)
+- `internal/server/blast.go` — blast radius node construction (1 site)
+- `internal/server/blast_test.go` — test fixtures (5 sites)
+- `internal/server/gaps_test.go` — test fixtures (10 sites)
+- `internal/server/server_test.go` — test fixtures (2 sites)
+- `internal/server/store/sqlite.go` — `LoadGraph` node construction (1 site)
+- `internal/tui/model_test.go` — test fixtures (5 sites)
+- `internal/tui/graphview/view_test.go` — test fixtures (3 sites)
+- `internal/tui/graphview/layout_test.go` — test fixtures (5 sites)
+- `internal/tui/graphview/render_test.go` — test fixture (1 site)
+- `internal/report/json_test.go` — test fixtures (2 sites)
+- `internal/graph/builder_test.go` — if any exist
+- `internal/graph/graph_test.go` — if any exist
+- `internal/graph/propagator_test.go` — if any exist
+- `internal/graph/integration_test.go` — if any exist
+
+Also update `internal/server/store/store.go` `GraphNode` struct and `internal/server/store/sqlite.go` schema/queries to include `project_id` and `version_key` columns.
 
 Run: `go build ./...`
-Expected: compiles cleanly
+Expected: compiles cleanly with zero errors
+
+Run: `go test ./...`
+Expected: all existing tests still pass
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add internal/graph/types.go internal/graph/types_test.go internal/graph/builder.go
-git commit -m "feat(graph): add new node/edge types, PinningSemverRange, cache fields on Node"
+git add -A
+git commit -m "feat(graph): add new node/edge types, PinningSemverRange, cache fields on Node
+
+Adds 5 node types (precommit_hook, terraform_module, git_submodule,
+dev_tool, build_tool), 5 edge types, PinningSemverRange pinning quality,
+and ProjectID/VersionKey fields on Node. Updates 40+ construction sites
+across the codebase."
 ```
 
 ---
@@ -396,6 +434,48 @@ func TestCacheDB_CVECache(t *testing.T) {
 	// just verify the happy path works)
 }
 
+func TestCacheDB_RefResolution(t *testing.T) {
+	db, err := NewCacheDB(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	// Tag resolution with 1h TTL
+	if err := db.SetRefResolution("actions/checkout", "v4", "abc123sha", "tag"); err != nil {
+		t.Fatal(err)
+	}
+	sha, err := db.GetRefResolution("actions/checkout", "v4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sha != "abc123sha" {
+		t.Errorf("GetRefResolution: got %q, want abc123sha", sha)
+	}
+}
+
+func TestCacheDB_VersionDependencyDedup(t *testing.T) {
+	db, err := NewCacheDB(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	db.UpsertProject(&Project{ID: "npm/a", Type: "registry"})
+	db.UpsertProject(&Project{ID: "npm/b", Type: "registry"})
+	db.UpsertProjectVersion(&ProjectVersion{ProjectID: "npm/a", VersionKey: "npm/a@1.0.0"})
+	db.UpsertProjectVersion(&ProjectVersion{ProjectID: "npm/b", VersionKey: "npm/b@1.0.0"})
+
+	// Insert same dependency edge twice — should not duplicate
+	db.AddVersionDependency("npm/a", "npm/a@1.0.0", "npm/b", "npm/b@1.0.0", "depends_on")
+	db.AddVersionDependency("npm/a", "npm/a@1.0.0", "npm/b", "npm/b@1.0.0", "depends_on")
+
+	deps, _ := db.GetVersionDependencies("npm/a", "npm/a@1.0.0")
+	if len(deps) != 1 {
+		t.Errorf("expected 1 dep after dedup, got %d", len(deps))
+	}
+}
+
 func TestCacheDB_Prune(t *testing.T) {
 	db, err := NewCacheDB(":memory:")
 	if err != nil {
@@ -472,11 +552,12 @@ type Project struct {
 }
 
 type ProjectVersion struct {
-	ProjectID  string
-	VersionKey string
-	Semver     string
-	DepTypes   []string
-	ScannedAt  time.Time
+	ProjectID    string
+	VersionKey   string
+	Semver       string
+	DepTypes     []string
+	ScannedAt    time.Time
+	LastAccessed time.Time // updated on cache hit, used by Prune
 }
 
 type VersionDep struct {
@@ -532,11 +613,12 @@ func (c *CacheDB) migrate() error {
 			last_fetched     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE TABLE IF NOT EXISTS project_versions (
-			project_id  TEXT NOT NULL REFERENCES projects(id),
-			version_key TEXT NOT NULL,
-			semver      TEXT,
-			dep_types   TEXT DEFAULT '[]',
-			scanned_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			project_id    TEXT NOT NULL REFERENCES projects(id),
+			version_key   TEXT NOT NULL,
+			semver        TEXT,
+			dep_types     TEXT DEFAULT '[]',
+			scanned_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			last_accessed TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (project_id, version_key)
 		);
 		CREATE TABLE IF NOT EXISTS version_dependencies (
@@ -545,11 +627,20 @@ func (c *CacheDB) migrate() error {
 			child_project_id   TEXT NOT NULL,
 			child_version_key  TEXT NOT NULL,
 			edge_type          TEXT NOT NULL,
+			UNIQUE(parent_project_id, parent_version_key, child_project_id, child_version_key, edge_type),
 			FOREIGN KEY (parent_project_id, parent_version_key) REFERENCES project_versions(project_id, version_key),
 			FOREIGN KEY (child_project_id, child_version_key) REFERENCES project_versions(project_id, version_key)
 		);
 		CREATE INDEX IF NOT EXISTS idx_vd_parent ON version_dependencies(parent_project_id, parent_version_key);
 		CREATE INDEX IF NOT EXISTS idx_vd_child ON version_dependencies(child_project_id, child_version_key);
+		CREATE TABLE IF NOT EXISTS ref_resolutions (
+			repo     TEXT NOT NULL,
+			ref      TEXT NOT NULL,
+			sha      TEXT NOT NULL,
+			ref_type TEXT NOT NULL,  -- "tag" or "branch"
+			resolved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (repo, ref)
+		);
 		CREATE TABLE IF NOT EXISTS cve_cache (
 			ecosystem  TEXT NOT NULL,
 			name       TEXT NOT NULL,
@@ -630,9 +721,43 @@ func (c *CacheDB) GetProjectVersion(projectID, versionKey string) (*ProjectVersi
 }
 
 func (c *CacheDB) AddVersionDependency(parentPID, parentVK, childPID, childVK, edgeType string) error {
-	_, err := c.db.Exec(`INSERT INTO version_dependencies (parent_project_id, parent_version_key, child_project_id, child_version_key, edge_type) VALUES (?, ?, ?, ?, ?)`,
+	_, err := c.db.Exec(`INSERT OR IGNORE INTO version_dependencies (parent_project_id, parent_version_key, child_project_id, child_version_key, edge_type) VALUES (?, ?, ?, ?, ?)`,
 		parentPID, parentVK, childPID, childVK, edgeType)
 	return err
+}
+
+// TouchVersion updates last_accessed on cache hit (called by crawler on dedup)
+func (c *CacheDB) TouchVersion(projectID, versionKey string) error {
+	_, err := c.db.Exec(`UPDATE project_versions SET last_accessed = ? WHERE project_id = ? AND version_key = ?`,
+		time.Now(), projectID, versionKey)
+	return err
+}
+
+func (c *CacheDB) SetRefResolution(repo, ref, sha, refType string) error {
+	_, err := c.db.Exec(`INSERT OR REPLACE INTO ref_resolutions (repo, ref, sha, ref_type, resolved_at) VALUES (?, ?, ?, ?, ?)`,
+		repo, ref, sha, refType, time.Now())
+	return err
+}
+
+func (c *CacheDB) GetRefResolution(repo, ref string) (string, error) {
+	row := c.db.QueryRow(`SELECT sha, ref_type, resolved_at FROM ref_resolutions WHERE repo = ? AND ref = ?`, repo, ref)
+	var sha, refType string
+	var resolvedAt time.Time
+	if err := row.Scan(&sha, &refType, &resolvedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	// TTL based on ref type
+	ttl := 1 * time.Hour // tags
+	if refType == "branch" {
+		ttl = 15 * time.Minute
+	}
+	if time.Since(resolvedAt) > ttl {
+		return "", nil // expired
+	}
+	return sha, nil
 }
 
 func (c *CacheDB) GetVersionDependencies(projectID, versionKey string) ([]VersionDep, error) {
@@ -693,15 +818,15 @@ func (c *CacheDB) GetCVECache(ecosystem, name, version string) (string, error) {
 
 func (c *CacheDB) Prune(olderThan time.Duration) (int, error) {
 	cutoff := time.Now().Add(-olderThan)
-	// Delete deps first (FK), then versions, then orphan projects
+	// Delete deps first (FK), then versions not accessed recently, then orphan projects
 	result, err := c.db.Exec(`
 		DELETE FROM version_dependencies WHERE parent_project_id IN (
-			SELECT project_id FROM project_versions WHERE scanned_at < ?
+			SELECT project_id FROM project_versions WHERE last_accessed < ?
 		)`, cutoff)
 	if err != nil {
 		return 0, err
 	}
-	result, err = c.db.Exec(`DELETE FROM project_versions WHERE scanned_at < ?`, cutoff)
+	result, err = c.db.Exec(`DELETE FROM project_versions WHERE last_accessed < ?`, cutoff)
 	if err != nil {
 		return 0, err
 	}
@@ -815,6 +940,8 @@ func DefaultConcurrency() ConcurrencyConfig {
 	return ConcurrencyConfig{RegistryWorkers: 10, GitCloneWorkers: 3, GitHubAPIWorkers: 5}
 }
 ```
+
+Deprecate `Registries.GitHubToken` in favor of `Auth.GitHubToken`. In `LoadFile`, populate `Auth.GitHubToken` from both `auth.github_token` and the existing `registries.github_token` (with `auth.` taking precedence). This keeps backward compat for existing config files.
 
 In `LoadFile`, after existing config loading, add:
 ```go
