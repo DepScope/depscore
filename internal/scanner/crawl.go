@@ -11,6 +11,7 @@ import (
 	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/crawler"
 	"github.com/depscope/depscope/internal/crawler/resolvers"
+	"github.com/depscope/depscope/internal/resolve"
 	"github.com/depscope/depscope/internal/vuln"
 )
 
@@ -82,6 +83,90 @@ func CrawlDir(ctx context.Context, dir string, opts CrawlOptions) (*crawler.Craw
 
 	// 6. Run org trust scoring on all nodes.
 	ownOrgFloor := 80 // default floor for own-org packages
+	for _, node := range result.Graph.Nodes {
+		orgType := core.ClassifyOrg(node.ProjectID, opts.TrustedOrgs)
+		node.Score = core.ApplyOrgTrust(node.Score, orgType, ownOrgFloor)
+		if node.Metadata == nil {
+			node.Metadata = make(map[string]any)
+		}
+		node.Metadata["org_type"] = orgType
+	}
+
+	return result, nil
+}
+
+// CrawlURL scans a remote URL using the unified crawler.
+// It uses resolve.DetectResolver to fetch remote files and then runs the
+// same crawler pipeline as CrawlDir.
+func CrawlURL(ctx context.Context, url string, opts CrawlOptions) (*crawler.CrawlResult, error) {
+	maxFiles := 5000
+	resolver := resolve.DetectResolver(url, resolve.DetectOptions{
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
+		GitLabToken: os.Getenv("GITLAB_TOKEN"),
+		MaxFiles:    maxFiles,
+	})
+
+	files, cleanup, err := resolver.Resolve(ctx, url)
+	defer cleanup()
+	if err != nil {
+		return nil, fmt.Errorf("resolve remote: %w", err)
+	}
+
+	// Convert resolved files to a FileTree.
+	tree := make(crawler.FileTree, len(files))
+	for _, f := range files {
+		tree[f.Path] = f.Content
+	}
+	if len(tree) == 0 {
+		return nil, fmt.Errorf("no files found at %s", url)
+	}
+
+	// Open CacheDB if path provided.
+	var cacheDB *cache.CacheDB
+	if opts.CacheDBPath != "" {
+		cacheDB, err = cache.NewCacheDB(opts.CacheDBPath)
+		if err != nil {
+			return nil, fmt.Errorf("open cache db: %w", err)
+		}
+		defer func() { _ = cacheDB.Close() }()
+	}
+
+	// Create all 8 resolvers.
+	allResolvers := map[crawler.DepSourceType]crawler.Resolver{
+		crawler.DepSourcePackage:   resolvers.NewPackageResolver(),
+		crawler.DepSourceAction:    resolvers.NewActionResolver(),
+		crawler.DepSourcePrecommit: resolvers.NewPrecommitResolver(),
+		crawler.DepSourceSubmodule: resolvers.NewSubmoduleResolver(),
+		crawler.DepSourceTerraform: resolvers.NewTerraformResolver(),
+		crawler.DepSourceTool:      resolvers.NewToolResolver(),
+		crawler.DepSourceScript:    resolvers.NewScriptResolver(),
+		crawler.DepSourceBuildTool: resolvers.NewBuildToolResolver(),
+	}
+
+	maxDepth := opts.MaxDepth
+	if maxDepth == 0 {
+		maxDepth = 25
+	}
+
+	c := crawler.NewCrawler(cacheDB, allResolvers, crawler.CrawlerOptions{
+		MaxDepth: maxDepth,
+		OwnOrgs:  opts.TrustedOrgs,
+	})
+
+	result, err := c.Crawl(ctx, tree)
+	if err != nil {
+		return nil, fmt.Errorf("crawl: %w", err)
+	}
+
+	// Run CVE pass if not disabled.
+	if !opts.NoCVE {
+		osvClient := vuln.NewOSVClient()
+		cveErrors := crawler.RunCVEPass(ctx, result.Graph, cacheDB, osvClient)
+		result.Errors = append(result.Errors, cveErrors...)
+	}
+
+	// Run org trust scoring on all nodes.
+	ownOrgFloor := 80
 	for _, node := range result.Graph.Nodes {
 		orgType := core.ClassifyOrg(node.ProjectID, opts.TrustedOrgs)
 		node.Score = core.ApplyOrgTrust(node.Score, orgType, ownOrgFloor)

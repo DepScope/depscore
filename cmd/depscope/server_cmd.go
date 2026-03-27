@@ -21,6 +21,8 @@ func init() {
 	serverCmd.Flags().String("store", "memory", "storage backend: memory, sqlite, dynamo")
 	serverCmd.Flags().String("table", "depscope-scans", "DynamoDB table name")
 	serverCmd.Flags().String("db-path", "./depscope.db", "SQLite database file path")
+	serverCmd.Flags().String("cache-db", "", "path to dependency cache database")
+	serverCmd.Flags().StringSlice("trusted-orgs", nil, "GitHub orgs to treat as trusted")
 	rootCmd.AddCommand(serverCmd)
 }
 
@@ -52,10 +54,15 @@ func runServer(cmd *cobra.Command, args []string) error {
 		s = store.NewMemoryStore()
 	}
 
+	cacheDB, _ := cmd.Flags().GetString("cache-db")
+	trustedOrgs, _ := cmd.Flags().GetStringSlice("trusted-orgs")
+
 	srv, err := server.NewServer(server.Options{
-		Store:      s,
-		GraphStore: graphStore,
-		Mode:       server.ModeLocal,
+		Store:       s,
+		GraphStore:  graphStore,
+		Mode:        server.ModeLocal,
+		CacheDBPath: cacheDB,
+		TrustedOrgs: trustedOrgs,
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)

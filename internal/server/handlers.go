@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/graph"
 	"github.com/depscope/depscope/internal/scanner"
@@ -154,45 +155,55 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 func (s *Server) runScan(ctx context.Context, id, rawURL, profile string) {
 	_ = s.store.UpdateStatus(id, "running")
 
-	result, err := scanner.ScanURL(ctx, rawURL, scanner.Options{Profile: profile})
+	crawlResult, err := scanner.CrawlURL(ctx, rawURL, scanner.CrawlOptions{
+		Profile:     profile,
+		CacheDBPath: s.cacheDBPath,
+		TrustedOrgs: s.trustedOrgs,
+	})
 	if err != nil {
 		log.Printf("scan %s failed: %v", id, err)
 		_ = s.store.SaveError(id, err.Error())
 		return
 	}
 
-	_ = s.store.SaveResult(id, result)
+	// Create minimal ScanResult for backward compat with the results template.
+	cfg := config.ProfileByName(profile)
+	scanResult := &core.ScanResult{
+		Profile:       profile,
+		PassThreshold: cfg.PassThreshold,
+		Graph:         crawlResult.Graph,
+	}
+	_ = s.store.SaveResult(id, scanResult)
 
-	if s.graphStore != nil && result.Graph != nil {
-		if g, ok := result.Graph.(*graph.Graph); ok {
-			nodes := make([]store.GraphNode, 0, len(g.Nodes))
-			for _, n := range g.Nodes {
-				nodes = append(nodes, store.GraphNode{
-					NodeID:     n.ID,
-					Type:       n.Type.String(),
-					Name:       n.Name,
-					Version:    n.Version,
-					Ref:        n.Ref,
-					Score:      n.Score,
-					Risk:       string(n.Risk),
-					Pinning:    n.Pinning.String(),
-					Metadata:   n.Metadata,
-					ProjectID:  n.ProjectID,
-					VersionKey: n.VersionKey,
-				})
-			}
-			edges := make([]store.GraphEdge, 0, len(g.Edges))
-			for _, e := range g.Edges {
-				edges = append(edges, store.GraphEdge{
-					From:  e.From,
-					To:    e.To,
-					Type:  e.Type.String(),
-					Depth: e.Depth,
-				})
-			}
-			if err := s.graphStore.SaveGraph(id, nodes, edges); err != nil {
-				log.Printf("save graph for scan %s: %v", id, err)
-			}
+	g := crawlResult.Graph
+	if s.graphStore != nil && g != nil {
+		nodes := make([]store.GraphNode, 0, len(g.Nodes))
+		for _, n := range g.Nodes {
+			nodes = append(nodes, store.GraphNode{
+				NodeID:     n.ID,
+				Type:       n.Type.String(),
+				Name:       n.Name,
+				Version:    n.Version,
+				Ref:        n.Ref,
+				Score:      n.Score,
+				Risk:       string(n.Risk),
+				Pinning:    n.Pinning.String(),
+				Metadata:   n.Metadata,
+				ProjectID:  n.ProjectID,
+				VersionKey: n.VersionKey,
+			})
+		}
+		edges := make([]store.GraphEdge, 0, len(g.Edges))
+		for _, e := range g.Edges {
+			edges = append(edges, store.GraphEdge{
+				From:  e.From,
+				To:    e.To,
+				Type:  e.Type.String(),
+				Depth: e.Depth,
+			})
+		}
+		if err := s.graphStore.SaveGraph(id, nodes, edges); err != nil {
+			log.Printf("save graph for scan %s: %v", id, err)
 		}
 	}
 }

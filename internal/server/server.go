@@ -22,16 +22,20 @@ const (
 
 // Options configures the server.
 type Options struct {
-	Store      store.ScanStore
-	GraphStore store.GraphStore
-	Mode       Mode
+	Store       store.ScanStore
+	GraphStore  store.GraphStore
+	Mode        Mode
+	CacheDBPath string   // path to SQLite cache DB (empty = no cache)
+	TrustedOrgs []string // trusted GitHub/GitLab orgs
 }
 
 // Server is the HTTP handler for the depscope web interface.
 type Server struct {
-	store      store.ScanStore
-	graphStore store.GraphStore
-	mode       Mode
+	store       store.ScanStore
+	graphStore  store.GraphStore
+	mode        Mode
+	cacheDBPath string
+	trustedOrgs []string
 	// base is the layout-only template; each page is cloned from it.
 	base *template.Template
 	mux  *http.ServeMux
@@ -40,10 +44,12 @@ type Server struct {
 // NewServer creates and configures a new Server.
 func NewServer(opts Options) (*Server, error) {
 	s := &Server{
-		store:      opts.Store,
-		graphStore: opts.GraphStore,
-		mode:       opts.Mode,
-		mux:        http.NewServeMux(),
+		store:       opts.Store,
+		graphStore:  opts.GraphStore,
+		mode:        opts.Mode,
+		cacheDBPath: opts.CacheDBPath,
+		trustedOrgs: opts.TrustedOrgs,
+		mux:         http.NewServeMux(),
 	}
 
 	funcMap := template.FuncMap{
