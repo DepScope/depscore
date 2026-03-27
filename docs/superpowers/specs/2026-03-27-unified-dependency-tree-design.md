@@ -38,7 +38,7 @@ The tree captures anything that **executes** in your dev machines, CI, or runtim
 
 ## Cache Model
 
-SQLite database replacing the current flat disk cache (`~/.cache/depscope/`).
+SQLite database replacing the current flat disk cache (`~/.cache/depscope/`). This is a clean break — the existing `DiskCache` (SHA-256 hashed JSON files) is not migrated. First run after upgrade starts with a cold cache.
 
 ### `projects` table
 
@@ -69,14 +69,37 @@ CREATE TABLE project_versions (
     project_id  TEXT NOT NULL REFERENCES projects(id),
     version_key TEXT NOT NULL,     -- SHA for git deps, "ecosystem/name@version" for registry
     semver      TEXT,              -- resolved semver tag (for CVE lookups), nullable
-    dependencies TEXT,             -- JSON array of child version_keys
     dep_types   TEXT,              -- JSON: what was found (manifests, actions, hooks, etc.)
     scanned_at  TIMESTAMP NOT NULL,
     PRIMARY KEY (project_id, version_key)
 );
+
+-- Normalized dependency edges (replaces JSON blob for queryability)
+CREATE TABLE version_dependencies (
+    parent_project_id  TEXT NOT NULL,
+    parent_version_key TEXT NOT NULL,
+    child_project_id   TEXT NOT NULL,
+    child_version_key  TEXT NOT NULL,
+    edge_type          TEXT NOT NULL,  -- "depends_on", "uses_action", "uses_hook", etc.
+    FOREIGN KEY (parent_project_id, parent_version_key) REFERENCES project_versions(project_id, version_key),
+    FOREIGN KEY (child_project_id, child_version_key) REFERENCES project_versions(project_id, version_key)
+);
+
+CREATE INDEX idx_vd_parent ON version_dependencies(parent_project_id, parent_version_key);
+CREATE INDEX idx_vd_child ON version_dependencies(child_project_id, child_version_key);
 ```
 
 **TTL: never expires.** A SHA is immutable. `npm/lodash@4.17.21` always has the same deps.
+
+The `version_dependencies` junction table replaces a JSON `dependencies` blob — this makes `discover` queries fast via indexed lookups on the child columns instead of fragile `LIKE` queries on JSON text.
+
+### Cache size management
+
+`project_versions` never expires, so the database grows over time. Mitigation:
+- `depscope cache status` reports database size and row counts
+- `depscope cache prune --older-than 90d` removes project_versions not accessed in N days (tracks `last_accessed` timestamp, updated on cache hit)
+- SQLite `VACUUM` runs after prune to reclaim space
+- No automatic eviction — the user controls when to prune
 
 ### `cve_cache` table
 
@@ -144,7 +167,7 @@ New:
 
 ### Node structure
 
-Every node links back to the cache:
+The existing `graph.Node` struct gains two new fields to link back to the cache. This is a **breaking change** to the struct — all existing code that constructs `Node` values must be updated.
 
 ```go
 type Node struct {
@@ -157,12 +180,55 @@ type Node struct {
     Risk       core.RiskLevel
     Pinning    PinningQuality
     Metadata   map[string]any
-    ProjectID  string         // FK → projects.id
-    VersionKey string         // FK → project_versions.version_key
+    ProjectID  string         // FK → projects.id (new)
+    VersionKey string         // FK → project_versions.version_key (new)
 }
 ```
 
+### Pinning quality extension
+
+Add `PinningSemverRange` between `PinningExactVersion` and `PinningMajorTag` to cover lockfile-resolved semver ranges:
+
+```go
+const (
+    PinningSHA          PinningQuality = iota
+    PinningDigest
+    PinningExactVersion
+    PinningSemverRange    // new: ^4.0.0, ~1.2.3 (mutable at publish time)
+    PinningMajorTag
+    PinningBranch
+    PinningUnpinned
+    PinningNA
+)
+```
+
+### Scoring for new node types
+
+Existing scoring (`core.Score`) is designed for registry packages. New node types use a simplified model based on the metadata available:
+
+| Node type | Scoring factors | Notes |
+|---|---|---|
+| `NodePrecommitHook` | Repo health, maintainer count, org backing, pinning quality | Same as actions — these are git repos |
+| `NodeTerraformModule` | Repo health, maintainer count, org backing, pinning quality, download count (Terraform Registry) | Terraform Registry provides download stats |
+| `NodeGitSubmodule` | Repo health, maintainer count, org backing | No pinning factor (submodules are always SHA-pinned in git) |
+| `NodeDevTool` | Release recency, org backing | Minimal — these are version identifiers, leaf nodes |
+| `NodeBuildTool` | Pinning quality of scripts detected within | Heuristic — score reflects how many unpinned downloads it triggers |
+
 ## Crawler & Resolver Architecture
+
+### FileTree type
+
+A `FileTree` is an in-memory map of file paths to their contents, representing a directory's files. For the root scan this is built from disk; for resolved dependencies it comes from git fetch or registry API.
+
+```go
+// FileTree represents a set of files, keyed by relative path.
+// For large repos, only manifest/config files are loaded (not all source).
+type FileTree map[string][]byte // path → content
+```
+
+Memory management: resolvers only fetch files they need to detect dependencies (manifests, configs, workflow files), not full source trees. A resolved npm package fetches `package.json` from the registry, not the entire tarball. A resolved git repo fetches via GitHub Trees API with path filtering (already implemented in `internal/resolve/`). This keeps each `FileTree` small (typically <100 files, <1MB) even at depth 25.
+
+For local directories (root scan), `FileTree` is populated by walking the filesystem with the same filtering — only known manifest/config filenames are read.
 
 ### Crawler
 
@@ -173,9 +239,29 @@ type Crawler struct {
     cache     *CacheDB
     resolvers map[DepSourceType]Resolver
     graph     *graph.Graph
-    seen      map[string]bool  // version_keys seen in THIS scan
+    seen      map[string]bool  // version_keys seen in THIS scan (mutex-protected)
     maxDepth  int              // default 25
     ownOrgs   []string         // configured trusted orgs
+    mu        sync.Mutex       // protects seen + graph
+}
+```
+
+**Output type:** The Crawler produces a `*graph.Graph` (the unified dependency tree) plus a `CrawlStats` struct with counts and errors. The existing `core.ScanResult` is built from the graph in a post-processing step (scoring, CVE, risk propagation), preserving backward compatibility with report formatters.
+
+```go
+type CrawlResult struct {
+    Graph    *graph.Graph
+    Stats    CrawlStats
+    Errors   []CrawlError  // partial failures
+}
+
+type CrawlStats struct {
+    TotalNodes    int
+    TotalEdges    int
+    MaxDepthHit   int
+    CacheHits     int
+    CacheMisses   int
+    ByType        map[graph.NodeType]int
 }
 ```
 
@@ -185,7 +271,12 @@ Each dependency source implements:
 
 ```go
 type Resolver interface {
+    // Detect finds dependency references in file contents.
+    // For monorepos with multiple manifests, returns refs from all of them.
     Detect(ctx context.Context, contents FileTree) ([]DepRef, error)
+
+    // Resolve takes a reference and returns the project identity, version,
+    // and a FileTree of its contents (for recursive scanning).
     Resolve(ctx context.Context, ref DepRef) (*ResolvedDep, error)
 }
 
@@ -194,13 +285,14 @@ type DepRef struct {
     Name     string
     Ref      string
     Ecosystem string
+    Pinning  graph.PinningQuality
 }
 
 type ResolvedDep struct {
     ProjectID  string
     VersionKey string
     Semver     string       // for CVE lookups, nullable
-    Contents   FileTree     // for recursive scanning
+    Contents   FileTree     // for recursive scanning (nil for leaf nodes)
     Metadata   ProjectMeta
 }
 ```
@@ -217,39 +309,133 @@ type ResolvedDep struct {
 | `ToolResolver` | `.tool-versions`, `.mise.toml` | Version DB lookup | New |
 | `ScriptResolver` | `curl\|sh`, `wget` in shell/CI | URL fetch | Partially exists |
 
+**`BuildToolResolver` scope:** Detection in Makefiles/Taskfiles/justfiles is best-effort heuristic only. It regex-scans for `curl`, `wget`, `go install`, `pip install`, `npm install -g` patterns in target bodies. It will miss obfuscated or variable-interpolated URLs and may false-positive on commented-out code. This is explicitly a best-effort resolver — it catches the obvious cases and flags the file for manual review.
+
+### Authentication
+
+Resolvers that access git hosts need tokens. Configuration extends the existing pattern:
+
+```yaml
+auth:
+  github_token: ${GITHUB_TOKEN}     # existing, from env
+  gitlab_token: ${GITLAB_TOKEN}     # existing, from env
+  terraform_token: ${TF_TOKEN}      # Terraform Cloud/Enterprise
+  bitbucket_token: ${BB_TOKEN}      # Bitbucket
+```
+
+Resolvers receive an `AuthProvider` that returns the appropriate token for a given host. Private repos that fail authentication produce an error node (see Error Handling below), not a crash.
+
+### Concurrency model
+
+The BFS loop processes each depth level concurrently:
+
+```go
+// Per-resolver concurrency limits (configurable)
+type ConcurrencyConfig struct {
+    RegistryWorkers  int  // default 10 (fast API calls)
+    GitCloneWorkers  int  // default 3  (slow, heavy)
+    GitHubAPIWorkers int  // default 5  (rate-limited)
+}
+```
+
+- **Within a BFS level:** All `Detect` calls for a given FileTree run sequentially (they're fast, CPU-only). All `Resolve` calls for discovered refs run concurrently via a worker pool, partitioned by resolver type.
+- **Across levels:** The next level starts only when all resolutions in the current level complete (ensures `seen` map is fully updated before next level).
+- **Rate limiting:** GitHub API calls go through a shared rate-limiter (respects `X-RateLimit-Remaining` headers). Registry APIs use per-host semaphores.
+- **Global timeout:** Configurable per-scan timeout (default 10 minutes). Context cancellation propagates to all resolvers.
+
+### Error handling
+
+Partial failures are expected in a depth-25 crawl. Strategy: **continue on error, mark failed nodes.**
+
+```go
+type CrawlError struct {
+    DepRef   DepRef
+    Depth    int
+    Err      error
+    Resolver DepSourceType
+}
+```
+
+- **Resolver fails** (rate limit, auth failure, network error): Create a node with `Risk = CRITICAL` and `Metadata["error"] = "resolution failed: ..."`. Add to `CrawlResult.Errors`. Continue with other refs.
+- **Corrupt cache entry:** Delete the entry, re-resolve from source. Log a warning.
+- **Private repo / no access:** Create node with `Metadata["error"] = "access denied"`. Still appears in the tree as an unresolved dependency — visible risk.
+- **SQLite locked:** Use WAL mode (already used in existing code). Concurrent reads are fine. Writes use a mutex. If still blocked, retry with backoff (3 attempts, then fail the write but continue the scan).
+
+The final report includes an "Unresolved Dependencies" section listing all error nodes.
+
 ### BFS algorithm
 
+The queue carries two types of items: a `FileTree` to scan fresh, or a cached `version_key` whose children are already known.
+
+```go
+type queueItem struct {
+    // Exactly one of these is set:
+    Contents   FileTree  // fresh scan needed
+    CachedDeps []CachedChild // children already known from cache
+
+    Depth      int
+    ParentVK   string    // for edge construction
+}
+
+type CachedChild struct {
+    ProjectID  string
+    VersionKey string
+    EdgeType   string
+}
 ```
-queue = [(root_dir_contents, depth=0)]
+
+```
+queue = [queueItem{Contents: root_dir, Depth: 0}]
+
 while queue not empty:
-    contents, depth = queue.pop()
-    if depth >= maxDepth: continue
+    item = queue.pop()
+    if item.Depth >= maxDepth: continue
 
-    for each resolver:
-        refs = resolver.Detect(contents)
-        for each ref:
-            resolved = resolver.Resolve(ref)
-            vk = resolved.VersionKey
+    if item.Contents != nil:
+        // FRESH SCAN: detect + resolve
+        for each resolver:
+            refs = resolver.Detect(item.Contents)
+            resolve refs concurrently:
+                for each ref:
+                    resolved = resolver.Resolve(ref)  // may return error node
+                    vk = resolved.VersionKey
 
-            add node + edge to graph (linked to ProjectID, VersionKey)
+                    add node + edge to graph
 
-            if vk in seen:
-                continue  // already in this scan's tree → edge added, stop
+                    if vk in seen:
+                        continue  // dedup: edge added, stop recursing
 
-            seen[vk] = true
+                    seen[vk] = true
 
-            if cached_deps = cache.GetDeps(vk):
-                // cache knows the children — enqueue them for graph building
-                // but skip re-fetching contents
-                for each child_vk in cached_deps:
-                    queue.enqueue(child_vk, depth+1)
+                    if cached = cache.GetDeps(vk):
+                        queue.enqueue(queueItem{CachedDeps: cached, Depth: item.Depth+1, ParentVK: vk})
+                    else:
+                        queue.enqueue(queueItem{Contents: resolved.Contents, Depth: item.Depth+1, ParentVK: vk})
+
+    else if item.CachedDeps != nil:
+        // CACHE HIT: children are known, just build graph nodes/edges
+        for each child in item.CachedDeps:
+            add node + edge to graph (from item.ParentVK → child)
+
+            if child.VersionKey in seen:
+                continue  // dedup
+
+            seen[child.VersionKey] = true
+
+            // Recurse into this child's own deps (also from cache or resolve)
+            if cached = cache.GetDeps(child.VersionKey):
+                queue.enqueue(queueItem{CachedDeps: cached, Depth: item.Depth+1, ParentVK: child.VersionKey})
             else:
-                // scan resolved contents for its own deps
-                queue.enqueue(resolved.Contents, depth+1)
-                cache.StoreDeps(vk, discovered_children)
+                // Cache miss for a child — need to resolve it fresh
+                resolved = resolveByKey(child.ProjectID, child.VersionKey)
+                queue.enqueue(queueItem{Contents: resolved.Contents, Depth: item.Depth+1, ParentVK: child.VersionKey})
 ```
 
-Key: when cache has the dependency list, we skip re-fetching/re-parsing but still walk children to build this scan's graph edges.
+Key behaviors:
+- Two queue item types: fresh `FileTree` to scan, or `CachedDeps` to expand. Avoids the ambiguity of mixing them.
+- `seen` is updated **before** enqueuing, preventing duplicate processing of shared children.
+- Cache hits skip content fetching but still recurse to build the full graph.
+- Cache misses for cached children (e.g., child was pruned from cache) fall back to fresh resolution.
 
 ## Mutable Ref Risk Detection
 
@@ -367,9 +553,9 @@ With the new cache, `discover` becomes a cache query for previously scanned proj
 depscope discover lodash --range "<4.17.21"
 ```
 
-1. Query `project_versions` for entries whose `dependencies` JSON contains `npm/lodash@*`
-2. Check if matched semver falls in vulnerable range
-3. Return affected projects with full dependency path
+1. Query `version_dependencies` table: `SELECT DISTINCT parent_project_id FROM version_dependencies WHERE child_project_id = 'npm/lodash'` — fast indexed lookup
+2. Join with `project_versions` to get the child's semver, check if it falls in vulnerable range
+3. Walk the `version_dependencies` edges backward to reconstruct the full dependency path from root to the affected package
 
 Falls back to file-walk + parse for unscanned projects, populating the cache as it goes.
 
@@ -413,13 +599,17 @@ Summary line at bottom: total nodes, risk counts, max depth reached.
 
 This is a **replace** of the existing scanning infrastructure:
 
-1. New `internal/crawler/` package with `Crawler`, `Resolver` interface, BFS engine
-2. New `internal/cache/db.go` SQLite cache (replaces `internal/cache/cache.go` disk cache)
+1. New `internal/crawler/` package with `Crawler`, `Resolver` interface, BFS engine, `CrawlResult` output type
+2. New `internal/cache/db.go` SQLite cache with `projects`, `project_versions`, `version_dependencies`, `cve_cache` tables. Replaces `internal/cache/cache.go` disk cache entirely (clean break, no migration)
 3. New resolver packages: `internal/crawler/precommit/`, `internal/crawler/terraform/`, `internal/crawler/submodule/`, `internal/crawler/tool/`, `internal/crawler/buildtool/`
 4. Existing code wrapped as resolvers: `PackageResolver` wraps `internal/manifest/` + `internal/registry/`, `ActionResolver` wraps `internal/actions/`
-5. `scanner.ScanDir` and `scanner.ScanURL` refactored to use `Crawler`
-6. `discover` command queries cache first, falls back to walk
-7. Graph types extended with new node/edge types
-8. Web UI reworked for larger graphs
-9. TUI tree walker added alongside existing views
-10. New `depscope tree` subcommand
+5. `scanner.ScanDir` and `scanner.ScanURL` refactored to use `Crawler`. They now return `CrawlResult`, with a post-processing step that builds `core.ScanResult` for backward compatibility with report formatters
+6. `graph.Node` struct extended with `ProjectID` and `VersionKey` fields (breaking change — all Node construction sites updated)
+7. `PinningSemverRange` added to `PinningQuality` enum
+8. `config.Config` extended with `TrustedOrgs []string`, `Auth` (multi-host tokens), `Concurrency` (per-resolver limits)
+9. `discover` command queries `version_dependencies` table first, falls back to walk
+10. Graph types extended with 5 new node types and 5 new edge types
+11. Web UI reworked for larger graphs with clustering, filtering, depth control
+12. TUI tree walker added alongside existing views
+13. New `depscope tree` subcommand for full ASCII/Unicode tree output
+14. `depscope cache prune` subcommand for cache size management
