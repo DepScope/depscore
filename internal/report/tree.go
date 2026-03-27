@@ -40,6 +40,10 @@ func RenderTree(g *graph.Graph, opts TreeOptions) string {
 	}
 
 	roots := findRoots(g)
+	// Also check for children of the phantom "root" node used by the crawler.
+	if len(roots) == 0 {
+		roots = g.Neighbors("root")
+	}
 	if len(roots) == 0 {
 		return "  (no nodes found)\n"
 	}
@@ -229,7 +233,11 @@ func isMutable(p graph.PinningQuality) bool {
 func findRoots(g *graph.Graph) []string {
 	hasIncoming := make(map[string]bool)
 	for _, e := range g.Edges {
-		hasIncoming[e.To] = true
+		// Only count incoming edges from nodes that actually exist in the graph.
+		// The crawler uses a phantom "root" node for top-level edges.
+		if g.Nodes[e.From] != nil {
+			hasIncoming[e.To] = true
+		}
 	}
 
 	var roots []string
@@ -336,6 +344,9 @@ func isLastVisible(roots []string, idx int, g *graph.Graph, opts TreeOptions) bo
 
 func renderTreeJSON(g *graph.Graph, opts TreeOptions) string {
 	roots := findRoots(g)
+	if len(roots) == 0 {
+		roots = g.Neighbors("root")
+	}
 	var nodes []treeNode
 	for _, rootID := range roots {
 		n := g.Nodes[rootID]
