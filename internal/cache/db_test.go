@@ -341,6 +341,55 @@ func TestCacheDB_RefResolution_BranchExpired(t *testing.T) {
 	assert.Equal(t, "", sha, "branch resolved 20min ago should be expired (15min TTL)")
 }
 
+// TestCacheDB_PruneWithDependencies verifies that Prune cascades correctly:
+// version_dependencies rows for pruned versions are deleted before the
+// project_versions rows.
+func TestCacheDB_PruneWithDependencies(t *testing.T) {
+	db := newTestDB(t)
+
+	require.NoError(t, db.UpsertProject(&Project{ID: "npm/old", Ecosystem: "npm", Name: "old"}))
+	require.NoError(t, db.UpsertProject(&Project{ID: "npm/child", Ecosystem: "npm", Name: "child"}))
+
+	oldPV := &ProjectVersion{ProjectID: "npm/old", VersionKey: "npm/old@1.0.0"}
+	require.NoError(t, db.UpsertVersion(oldPV))
+	require.NoError(t, db.UpsertVersion(&ProjectVersion{ProjectID: "npm/child", VersionKey: "npm/child@1.0.0"}))
+
+	require.NoError(t, db.AddVersionDependency(&VersionDependency{
+		ParentProjectID:        "npm/old",
+		ParentVersionKey:       "npm/old@1.0.0",
+		ChildProjectID:         "npm/child",
+		ChildVersionConstraint: "npm/child@1.0.0",
+		DepScope:               "depends_on",
+	}))
+
+	// Backdate both timestamps on the old version to trigger pruning.
+	_, err := db.db.Exec(
+		`UPDATE project_versions SET scanned_at = datetime('now', '-100 days'), last_accessed = datetime('now', '-100 days') WHERE version_key = 'npm/old@1.0.0'`,
+	)
+	// scanned_at column may not exist; fall back to just last_accessed.
+	if err != nil {
+		_, err = db.db.Exec(
+			`UPDATE project_versions SET last_accessed = ? WHERE project_id = ? AND version_key = ?`,
+			time.Now().Add(-100*24*time.Hour), "npm/old", "npm/old@1.0.0",
+		)
+		require.NoError(t, err)
+	}
+
+	pruned, err := db.Prune(90 * 24 * time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 1, pruned)
+
+	// Dependency edge for the pruned version should also be gone.
+	deps, err := db.GetVersionDependencies("npm/old", "npm/old@1.0.0")
+	require.NoError(t, err)
+	assert.Len(t, deps, 0, "version_dependencies for pruned version should be deleted")
+
+	// The child version itself should still exist.
+	child, err := db.GetVersion("npm/child", "npm/child@1.0.0")
+	require.NoError(t, err)
+	assert.NotNil(t, child)
+}
+
 func TestCacheDB_Status(t *testing.T) {
 	db := newTestDB(t)
 

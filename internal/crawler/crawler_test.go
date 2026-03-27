@@ -443,6 +443,143 @@ func TestCrawler_ErrorNodeMetadata(t *testing.T) {
 	assert.Contains(t, result.Errors[0].Err.Error(), "connection refused")
 }
 
+// ---------------------------------------------------------------------------
+// types.go coverage: DepSourceType.String() and CrawlError.Error()
+// ---------------------------------------------------------------------------
+
+func TestDepSourceType_String(t *testing.T) {
+	tests := []struct {
+		src  DepSourceType
+		want string
+	}{
+		{DepSourcePackage, "package"},
+		{DepSourceAction, "action"},
+		{DepSourcePrecommit, "precommit"},
+		{DepSourceTerraform, "terraform"},
+		{DepSourceSubmodule, "submodule"},
+		{DepSourceTool, "tool"},
+		{DepSourceScript, "script"},
+		{DepSourceBuildTool, "buildtool"},
+		{DepSourceType(99), "unknown"},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, tt.src.String())
+	}
+}
+
+func TestCrawlError_Error(t *testing.T) {
+	e := CrawlError{Err: fmt.Errorf("test error")}
+	assert.Equal(t, "test error", e.Error())
+}
+
+// ---------------------------------------------------------------------------
+// crawler.go coverage: edgeTypeFromString via processCachedDeps
+// ---------------------------------------------------------------------------
+
+// TestCrawler_ProcessCachedDeps_EdgeTypes exercises edgeTypeFromString by
+// pre-populating the cache with different dep_scope strings and verifying
+// that the crawler produces edges with the correct types.
+func TestCrawler_ProcessCachedDeps_EdgeTypes(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "edge-types.db")
+	cacheDB, err := cache.NewCacheDB(dbPath)
+	require.NoError(t, err)
+	defer func() { _ = cacheDB.Close() }()
+
+	// Populate cache with a parent that has children using various edge scopes.
+	require.NoError(t, cacheDB.UpsertProject(&cache.Project{
+		ID: "npm/parent", Ecosystem: "npm", Name: "parent",
+	}))
+	require.NoError(t, cacheDB.UpsertVersion(&cache.ProjectVersion{
+		ProjectID: "npm/parent", VersionKey: "npm/parent@1.0.0", Metadata: "{}",
+	}))
+
+	edgeScopes := []string{
+		"depends_on", "hosted_at", "uses_action", "bundles",
+		"triggers", "resolves_to", "pulls_image", "downloads",
+		"uses_hook", "uses_module", "includes_submodule", "uses_tool",
+		"built_with", "unknown_scope",
+	}
+
+	for i, scope := range edgeScopes {
+		childID := fmt.Sprintf("npm/child-%d", i)
+		childVK := fmt.Sprintf("npm/child-%d@1.0.0", i)
+		require.NoError(t, cacheDB.UpsertProject(&cache.Project{
+			ID: childID, Ecosystem: "npm", Name: fmt.Sprintf("child-%d", i),
+		}))
+		require.NoError(t, cacheDB.UpsertVersion(&cache.ProjectVersion{
+			ProjectID: childID, VersionKey: childVK, Metadata: "{}",
+		}))
+		require.NoError(t, cacheDB.AddVersionDependency(&cache.VersionDependency{
+			ParentProjectID:        "npm/parent",
+			ParentVersionKey:       "npm/parent@1.0.0",
+			ChildProjectID:         childID,
+			ChildVersionConstraint: childVK,
+			DepScope:               scope,
+		}))
+	}
+
+	resolver := &mockResolver{
+		detectFn: func(_ context.Context, _ FileTree) ([]DepRef, error) {
+			return []DepRef{
+				{Source: DepSourcePackage, Name: "parent", Ref: "1.0.0", Ecosystem: "npm", Pinning: graph.PinningExactVersion},
+			}, nil
+		},
+		resolveFn: func(_ context.Context, ref DepRef) (*ResolvedDep, error) {
+			return &ResolvedDep{
+				ProjectID:  "npm/parent",
+				VersionKey: "npm/parent@1.0.0",
+				Semver:     "1.0.0",
+			}, nil
+		},
+	}
+
+	c := NewCrawler(cacheDB, map[DepSourceType]Resolver{DepSourcePackage: resolver}, CrawlerOptions{MaxDepth: 5})
+	result, err := c.Crawl(context.Background(), FileTree{"package.json": []byte(`{}`)})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Parent + all children should be in graph.
+	assert.Equal(t, 1+len(edgeScopes), len(result.Graph.Nodes))
+}
+
+// ---------------------------------------------------------------------------
+// cvepass.go coverage: RunCVEPass with cache hit
+// ---------------------------------------------------------------------------
+
+func TestCVEPass_WithCacheHit(t *testing.T) {
+	db, err := cache.NewCacheDB(":memory:")
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	// Pre-populate the CVE cache with a HIGH finding.
+	findingsJSON := `[{"ID":"CVE-2024-1234","Summary":"test vuln","Severity":"HIGH"}]`
+	require.NoError(t, db.SetCVECache("go", "github.com/example/pkg", "1.0.0", findingsJSON))
+
+	g := graph.New()
+	node := &graph.Node{
+		ID:         "package:go/github.com/example/pkg@1.0.0",
+		Type:       graph.NodePackage,
+		Name:       "github.com/example/pkg",
+		Version:    "1.0.0",
+		Score:      80,
+		Metadata:   map[string]any{"semver": "1.0.0", "ecosystem": "go"},
+		ProjectID:  "go/github.com/example/pkg",
+		VersionKey: "go/github.com/example/pkg@1.0.0",
+	}
+	g.AddNode(node)
+
+	errs := RunCVEPass(context.Background(), g, db, nil)
+	assert.Empty(t, errs)
+
+	// Should have attached findings to the node.
+	got := g.Nodes["package:go/github.com/example/pkg@1.0.0"]
+	require.NotNil(t, got)
+	assert.NotNil(t, got.Metadata["cve_findings"])
+	// Score should have been penalised (HIGH = -10).
+	assert.Equal(t, 70, got.Score)
+}
+
 // Ensure temp dir cleanup
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())

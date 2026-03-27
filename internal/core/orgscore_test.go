@@ -135,3 +135,49 @@ func TestApplyOrgTrust_CorporateCapAt100(t *testing.T) {
 		t.Errorf("want 100 (capped), got %d", got)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// extractGitHubOrg: URL scheme stripping
+// ---------------------------------------------------------------------------
+
+func TestClassifyOrg_WithHTTPSPrefix(t *testing.T) {
+	// extractGitHubOrg must strip the "https://" scheme before matching.
+	got := ClassifyOrg("https://github.com/google/repo", nil)
+	if got != "corporate" {
+		t.Errorf("want %q (corporate), got %q", "corporate", got)
+	}
+}
+
+func TestClassifyOrg_WithHTTPPrefix(t *testing.T) {
+	got := ClassifyOrg("http://github.com/microsoft/vscode", nil)
+	if got != "corporate" {
+		t.Errorf("want %q (corporate), got %q", "corporate", got)
+	}
+}
+
+func TestClassifyOrg_OrgOnlyNoRepo(t *testing.T) {
+	// "github.com/google" — no trailing repo segment; should still match.
+	got := ClassifyOrg("github.com/google", nil)
+	if got != "corporate" {
+		t.Errorf("want %q (corporate), got %q", "corporate", got)
+	}
+}
+
+func TestClassifyOrg_NonGitHubURL(t *testing.T) {
+	// gitlab.com paths should never resolve as corporate or own.
+	got := ClassifyOrg("gitlab.com/google/repo", nil)
+	if got != "individual" {
+		t.Errorf("want %q (individual for non-github), got %q", "individual", got)
+	}
+}
+
+func TestClassifyOrg_HTTPSWithOwnOrg(t *testing.T) {
+	// HTTPS prefix + own-org match: "own" should still be returned because
+	// trusted org check is done on the raw projectID before extractGitHubOrg.
+	// (ClassifyOrg checks trustedOrgs against the original string.)
+	trusted := []string{"https://github.com/my-corp"}
+	got := ClassifyOrg("https://github.com/my-corp/service", trusted)
+	if got != "own" {
+		t.Errorf("want %q (own), got %q", "own", got)
+	}
+}
