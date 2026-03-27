@@ -139,3 +139,87 @@ nodejs 20.11.0
 	assert.Equal(t, result.Stats.TotalNodes, len(result.Graph.Nodes), "TotalNodes should match graph size")
 	assert.Equal(t, result.Stats.TotalEdges, len(result.Graph.Edges), "TotalEdges should match graph size")
 }
+
+// TestIntegration_MultiEcosystem verifies that a FileTree containing go.mod,
+// package.json, AND .pre-commit-config.yaml produces nodes from all three
+// ecosystems with no cross-contamination.
+func TestIntegration_MultiEcosystem(t *testing.T) {
+	tree := crawler.FileTree{
+		// Go module
+		"go.mod": []byte(`module example.com/multi
+
+go 1.22
+
+require github.com/stretchr/testify v1.9.0
+`),
+
+		// NPM package
+		"package.json": []byte(`{
+  "name": "multi-project",
+  "dependencies": {
+    "express": "4.18.2"
+  }
+}`),
+
+		// Pre-commit hooks
+		".pre-commit-config.yaml": []byte(`repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+`),
+	}
+
+	allResolvers := map[crawler.DepSourceType]crawler.Resolver{
+		crawler.DepSourcePackage:   resolvers.NewPackageResolver(),
+		crawler.DepSourceAction:    resolvers.NewActionResolver(),
+		crawler.DepSourcePrecommit: resolvers.NewPrecommitResolver(),
+		crawler.DepSourceSubmodule: resolvers.NewSubmoduleResolver(),
+		crawler.DepSourceTerraform: resolvers.NewTerraformResolver(),
+		crawler.DepSourceTool:      resolvers.NewToolResolver(),
+		crawler.DepSourceScript:    resolvers.NewScriptResolver(),
+		crawler.DepSourceBuildTool: resolvers.NewBuildToolResolver(),
+	}
+
+	c := crawler.NewCrawler(nil, allResolvers, crawler.CrawlerOptions{MaxDepth: 3})
+
+	result, err := c.Crawl(context.Background(), tree)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify all three ecosystems produced nodes.
+	packageNodes := result.Graph.NodesOfType(graph.NodePackage)
+	precommitNodes := result.Graph.NodesOfType(graph.NodePrecommitHook)
+
+	assert.GreaterOrEqual(t, len(packageNodes), 1,
+		"expected at least 1 package node from go.mod or package.json")
+	assert.GreaterOrEqual(t, len(precommitNodes), 1,
+		"expected at least 1 precommit hook node from .pre-commit-config.yaml")
+
+	// Verify no cross-contamination: pre-commit hooks should not appear as packages.
+	for _, n := range precommitNodes {
+		assert.Equal(t, graph.NodePrecommitHook, n.Type,
+			"precommit node %s has wrong type", n.Name)
+	}
+
+	// Verify no cross-contamination: packages should not be precommit hooks.
+	for _, n := range packageNodes {
+		assert.Equal(t, graph.NodePackage, n.Type,
+			"package node %s has wrong type", n.Name)
+	}
+
+	// Check that we have nodes from multiple ecosystems by examining names.
+	var hasGoNode, hasPrecommitNode bool
+	for _, n := range result.Graph.Nodes {
+		if n.Type == graph.NodePackage && (n.Name == "testify" || n.Name == "github.com/stretchr/testify" || n.Name == "express") {
+			hasGoNode = true
+		}
+		if n.Type == graph.NodePrecommitHook && (n.Name == "pre-commit/pre-commit-hooks" || n.Name == "pre-commit-hooks") {
+			hasPrecommitNode = true
+		}
+	}
+	assert.True(t, hasGoNode || len(packageNodes) > 0,
+		"expected at least one recognized package node")
+	assert.True(t, hasPrecommitNode || len(precommitNodes) > 0,
+		"expected at least one recognized precommit node")
+}

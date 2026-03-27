@@ -213,6 +213,134 @@ func TestCacheDB_Prune(t *testing.T) {
 	assert.NotNil(t, got2)
 }
 
+// ---------------------------------------------------------------------------
+// TTL Boundary Tests (Gap 4 & Gap 8)
+// ---------------------------------------------------------------------------
+
+func TestCacheDB_ProjectTTL_NotExpired(t *testing.T) {
+	db := newTestDB(t)
+
+	p := &Project{
+		ID:          "github.com/recent/project",
+		Ecosystem:   "go",
+		Name:        "recent/project",
+		LastFetched: time.Now().Add(-23 * time.Hour), // 23h ago — within 24h TTL
+	}
+	require.NoError(t, db.UpsertProject(p))
+
+	got, err := db.GetProject(p.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got, "project fetched 23h ago should still be valid (24h TTL)")
+	assert.Equal(t, p.ID, got.ID)
+}
+
+func TestCacheDB_RefResolution_BranchTTL(t *testing.T) {
+	db := newTestDB(t)
+
+	// Branch ref resolved 14 min ago (within 15min TTL) — should be valid.
+	require.NoError(t, db.SetRefResolution("owner/repo", "main", "branch", "sha-valid"))
+	// Backdate to 14 minutes ago.
+	_, err := db.db.Exec(
+		`UPDATE ref_resolutions SET resolved_at = ? WHERE owner_repo = ? AND ref = ? AND ref_type = ?`,
+		time.Now().Add(-14*time.Minute), "owner/repo", "main", "branch",
+	)
+	require.NoError(t, err)
+
+	sha, err := db.GetRefResolution("owner/repo", "main", "branch")
+	require.NoError(t, err)
+	assert.Equal(t, "sha-valid", sha, "branch ref resolved 14min ago should still be valid (15min TTL)")
+
+	// Branch ref resolved 16 min ago (beyond 15min TTL) — should be expired.
+	require.NoError(t, db.SetRefResolution("owner/repo2", "develop", "branch", "sha-expired"))
+	_, err = db.db.Exec(
+		`UPDATE ref_resolutions SET resolved_at = ? WHERE owner_repo = ? AND ref = ? AND ref_type = ?`,
+		time.Now().Add(-16*time.Minute), "owner/repo2", "develop", "branch",
+	)
+	require.NoError(t, err)
+
+	sha2, err := db.GetRefResolution("owner/repo2", "develop", "branch")
+	require.NoError(t, err)
+	assert.Equal(t, "", sha2, "branch ref resolved 16min ago should be expired (15min TTL)")
+}
+
+func TestCacheDB_RefResolution_TagVsBranch(t *testing.T) {
+	db := newTestDB(t)
+
+	// Tag resolved 30 min ago — should be valid (1h TTL).
+	require.NoError(t, db.SetRefResolution("owner/repo", "v4", "tag", "sha-tag"))
+	_, err := db.db.Exec(
+		`UPDATE ref_resolutions SET resolved_at = ? WHERE owner_repo = ? AND ref = ? AND ref_type = ?`,
+		time.Now().Add(-30*time.Minute), "owner/repo", "v4", "tag",
+	)
+	require.NoError(t, err)
+
+	sha, err := db.GetRefResolution("owner/repo", "v4", "tag")
+	require.NoError(t, err)
+	assert.Equal(t, "sha-tag", sha, "tag resolved 30min ago should be valid (1h TTL)")
+
+	// Branch resolved 30 min ago — should be expired (15min TTL).
+	require.NoError(t, db.SetRefResolution("owner/repo", "main", "branch", "sha-branch"))
+	_, err = db.db.Exec(
+		`UPDATE ref_resolutions SET resolved_at = ? WHERE owner_repo = ? AND ref = ? AND ref_type = ?`,
+		time.Now().Add(-30*time.Minute), "owner/repo", "main", "branch",
+	)
+	require.NoError(t, err)
+
+	sha2, err := db.GetRefResolution("owner/repo", "main", "branch")
+	require.NoError(t, err)
+	assert.Equal(t, "", sha2, "branch resolved 30min ago should be expired (15min TTL)")
+}
+
+func TestCacheDB_CVECache_Expired(t *testing.T) {
+	db := newTestDB(t)
+
+	jsonData := `[{"id":"CVE-2024-9999","severity":"HIGH"}]`
+	require.NoError(t, db.SetCVECache("npm", "lodash", "4.17.20", jsonData))
+
+	// Backdate fetched_at to 7 hours ago (beyond 6h TTL).
+	_, err := db.db.Exec(
+		`UPDATE cve_cache SET fetched_at = ? WHERE ecosystem = ? AND name = ? AND version = ?`,
+		time.Now().Add(-7*time.Hour), "npm", "lodash", "4.17.20",
+	)
+	require.NoError(t, err)
+
+	got, err := db.GetCVECache("npm", "lodash", "4.17.20")
+	require.NoError(t, err)
+	assert.Equal(t, "", got, "CVE cache entry from 7h ago should be expired (6h TTL)")
+}
+
+func TestCacheDB_RefResolution_TagTTL(t *testing.T) {
+	db := newTestDB(t)
+
+	// Tag resolved 59 min ago — should be valid (1h TTL).
+	require.NoError(t, db.SetRefResolution("actions/checkout", "v4", "tag", "sha-59min"))
+	_, err := db.db.Exec(
+		`UPDATE ref_resolutions SET resolved_at = ? WHERE owner_repo = ? AND ref = ? AND ref_type = ?`,
+		time.Now().Add(-59*time.Minute), "actions/checkout", "v4", "tag",
+	)
+	require.NoError(t, err)
+
+	sha, err := db.GetRefResolution("actions/checkout", "v4", "tag")
+	require.NoError(t, err)
+	assert.Equal(t, "sha-59min", sha, "tag resolved 59min ago should still be valid (1h TTL)")
+}
+
+func TestCacheDB_RefResolution_BranchExpired(t *testing.T) {
+	db := newTestDB(t)
+
+	// Branch resolved 20 min ago — should be expired (15min TTL).
+	require.NoError(t, db.SetRefResolution("actions/checkout", "main", "branch", "sha-20min"))
+	_, err := db.db.Exec(
+		`UPDATE ref_resolutions SET resolved_at = ? WHERE owner_repo = ? AND ref = ? AND ref_type = ?`,
+		time.Now().Add(-20*time.Minute), "actions/checkout", "main", "branch",
+	)
+	require.NoError(t, err)
+
+	sha, err := db.GetRefResolution("actions/checkout", "main", "branch")
+	require.NoError(t, err)
+	assert.Equal(t, "", sha, "branch resolved 20min ago should be expired (15min TTL)")
+}
+
 func TestCacheDB_Status(t *testing.T) {
 	db := newTestDB(t)
 

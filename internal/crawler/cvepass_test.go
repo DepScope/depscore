@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/depscope/depscope/internal/graph"
+	"github.com/depscope/depscope/internal/vuln"
 )
 
 // buildGraph is a helper that creates a graph containing the given nodes.
@@ -147,6 +148,91 @@ func TestCVEPass_VersionKeyFallback(t *testing.T) {
 	// from VersionKey.
 	if _, ok := n.Metadata["cve_findings"]; !ok {
 		t.Error("expected cve_findings to be set when semver is in VersionKey")
+	}
+}
+
+// TestCVEPass_ScorePenalty verifies that CVE findings reduce the node's score
+// using the applyFindingsPenalty function's severity-based penalties.
+func TestCVEPass_ScorePenalty(t *testing.T) {
+	tests := []struct {
+		name        string
+		startScore  int
+		findings    []vuln.Finding
+		wantScore   int
+	}{
+		{
+			name:       "single HIGH finding reduces score by 10",
+			startScore: 80,
+			findings: []vuln.Finding{
+				{ID: "CVE-2024-0001", Severity: vuln.SeverityHigh},
+			},
+			wantScore: 70,
+		},
+		{
+			name:       "single CRITICAL finding reduces score by 15",
+			startScore: 80,
+			findings: []vuln.Finding{
+				{ID: "CVE-2024-0002", Severity: vuln.SeverityCritical},
+			},
+			wantScore: 65,
+		},
+		{
+			name:       "single MEDIUM finding reduces score by 5",
+			startScore: 80,
+			findings: []vuln.Finding{
+				{ID: "CVE-2024-0003", Severity: vuln.SeverityMedium},
+			},
+			wantScore: 75,
+		},
+		{
+			name:       "single LOW finding reduces score by 2",
+			startScore: 80,
+			findings: []vuln.Finding{
+				{ID: "CVE-2024-0004", Severity: vuln.SeverityLow},
+			},
+			wantScore: 78,
+		},
+		{
+			name:       "unknown severity treated as MEDIUM (penalty 5)",
+			startScore: 80,
+			findings: []vuln.Finding{
+				{ID: "CVE-2024-0005", Severity: "UNKNOWN"},
+			},
+			wantScore: 75,
+		},
+		{
+			name:       "multiple findings accumulate penalties",
+			startScore: 80,
+			findings: []vuln.Finding{
+				{ID: "CVE-2024-0001", Severity: vuln.SeverityHigh},     // -10
+				{ID: "CVE-2024-0002", Severity: vuln.SeverityCritical}, // -15
+			},
+			wantScore: 55,
+		},
+		{
+			name:       "score clamped to zero",
+			startScore: 10,
+			findings: []vuln.Finding{
+				{ID: "CVE-2024-0001", Severity: vuln.SeverityCritical}, // -15
+			},
+			wantScore: 0,
+		},
+		{
+			name:       "empty findings no change",
+			startScore: 80,
+			findings:   []vuln.Finding{},
+			wantScore:  80,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := applyFindingsPenalty(tt.startScore, tt.findings)
+			if got != tt.wantScore {
+				t.Errorf("applyFindingsPenalty(%d, findings) = %d, want %d",
+					tt.startScore, got, tt.wantScore)
+			}
+		})
 	}
 }
 

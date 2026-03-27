@@ -390,6 +390,59 @@ func TestCrawler_NilCache(t *testing.T) {
 	assert.Equal(t, 1, len(result.Graph.Nodes))
 }
 
+// TestCrawler_ErrorNodeMetadata verifies that when a resolver returns an error,
+// the resulting error node has Risk=CRITICAL, Metadata["error"] contains the
+// error message, and the error appears in CrawlResult.Errors.
+func TestCrawler_ErrorNodeMetadata(t *testing.T) {
+	resolveErr := errors.New("connection refused: registry.npmjs.org")
+
+	resolver := &mockResolver{
+		detectFn: func(_ context.Context, _ FileTree) ([]DepRef, error) {
+			return []DepRef{
+				{Source: DepSourcePackage, Name: "failing-pkg", Ref: "1.0.0", Ecosystem: "npm", Pinning: graph.PinningExactVersion},
+			}, nil
+		},
+		resolveFn: func(_ context.Context, ref DepRef) (*ResolvedDep, error) {
+			return nil, resolveErr
+		},
+	}
+
+	resolvers := map[DepSourceType]Resolver{
+		DepSourcePackage: resolver,
+	}
+
+	c := NewCrawler(nil, resolvers, CrawlerOptions{MaxDepth: 5})
+	root := FileTree{"package.json": []byte(`{}`)}
+
+	result, err := c.Crawl(context.Background(), root)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Should have exactly 1 error node.
+	require.Equal(t, 1, len(result.Graph.Nodes), "expected 1 error node")
+
+	// Find the error node and verify its properties.
+	var errorNode *graph.Node
+	for _, n := range result.Graph.Nodes {
+		errorNode = n
+		break
+	}
+	require.NotNil(t, errorNode)
+
+	// Risk must be CRITICAL.
+	assert.Equal(t, core.RiskCritical, errorNode.Risk, "error node Risk should be CRITICAL")
+
+	// Metadata["error"] must contain the error message.
+	require.NotNil(t, errorNode.Metadata, "error node should have Metadata")
+	errMsg, ok := errorNode.Metadata["error"]
+	require.True(t, ok, "error node Metadata should contain 'error' key")
+	assert.Equal(t, resolveErr.Error(), errMsg, "error message should match")
+
+	// The error must appear in CrawlResult.Errors.
+	require.Len(t, result.Errors, 1, "expected 1 CrawlError")
+	assert.Contains(t, result.Errors[0].Err.Error(), "connection refused")
+}
+
 // Ensure temp dir cleanup
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())

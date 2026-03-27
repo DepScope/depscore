@@ -223,3 +223,79 @@ func TestIsMutable(t *testing.T) {
 	assert.False(t, isMutable(graph.PinningExactVersion))
 	assert.False(t, isMutable(graph.PinningNA))
 }
+
+// TestMutableRefDetection_AllPinningLevels verifies that the isMutable function
+// correctly classifies all PinningQuality levels, and that nodes with mutable
+// pinning get the MUTABLE marker in tree output while immutable ones do not.
+func TestMutableRefDetection_AllPinningLevels(t *testing.T) {
+	levels := []struct {
+		pinning     graph.PinningQuality
+		wantMutable bool
+		label       string
+	}{
+		{graph.PinningSHA, false, "SHA"},
+		{graph.PinningDigest, false, "Digest"},
+		{graph.PinningExactVersion, false, "ExactVersion"},
+		{graph.PinningSemverRange, false, "SemverRange"},
+		{graph.PinningMajorTag, true, "MajorTag"},
+		{graph.PinningBranch, true, "Branch"},
+		{graph.PinningUnpinned, true, "Unpinned"},
+	}
+
+	for _, tt := range levels {
+		t.Run(tt.label, func(t *testing.T) {
+			// Verify isMutable directly.
+			assert.Equal(t, tt.wantMutable, isMutable(tt.pinning),
+				"isMutable(%s) should be %v", tt.label, tt.wantMutable)
+
+			// Verify the MUTABLE marker appears (or not) in tree output.
+			g := graph.New()
+			g.AddNode(&graph.Node{
+				ID: "action:test-node", Type: graph.NodeAction,
+				Name: "test-node", Version: "v1", Score: 75,
+				Risk: core.RiskLow, Pinning: tt.pinning,
+				Metadata: map[string]any{},
+			})
+
+			output := RenderTree(g, TreeOptions{})
+			if tt.wantMutable {
+				assert.Contains(t, output, "MUTABLE",
+					"pinning=%s should produce MUTABLE marker in tree output", tt.label)
+			} else {
+				assert.NotContains(t, output, "MUTABLE",
+					"pinning=%s should NOT produce MUTABLE marker in tree output", tt.label)
+			}
+		})
+	}
+}
+
+// TestMutableRefDetection_JSONOutput verifies the JSON tree output correctly
+// sets the "mutable" field based on pinning quality.
+func TestMutableRefDetection_JSONOutput(t *testing.T) {
+	g := graph.New()
+	g.AddNode(&graph.Node{
+		ID: "action:sha-pinned", Type: graph.NodeAction,
+		Name: "sha-pinned", Version: "abc123", Score: 95,
+		Risk: core.RiskLow, Pinning: graph.PinningSHA,
+		Metadata: map[string]any{},
+	})
+	g.AddNode(&graph.Node{
+		ID: "action:branch-ref", Type: graph.NodeAction,
+		Name: "branch-ref", Version: "main", Score: 40,
+		Risk: core.RiskHigh, Pinning: graph.PinningBranch,
+		Metadata: map[string]any{},
+	})
+
+	output := RenderTree(g, TreeOptions{JSON: true})
+
+	// Both nodes should appear in JSON output.
+	assert.Contains(t, output, `"name": "sha-pinned"`)
+	assert.Contains(t, output, `"name": "branch-ref"`)
+
+	// branch-ref (PinningBranch) should have mutable=true.
+	assert.Contains(t, output, `"mutable": true`)
+
+	// Only one node should be mutable (branch-ref), so "mutable": true should appear once.
+	assert.Equal(t, 1, strings.Count(output, `"mutable": true`),
+		"only branch-ref should have mutable=true in JSON output")
+}
