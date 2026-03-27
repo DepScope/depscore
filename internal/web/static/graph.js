@@ -99,7 +99,8 @@
     data.nodes.forEach(function (n) {
       counts[n.type] = (counts[n.type] || 0) + 1;
     });
-    ['package', 'action', 'workflow', 'docker_image', 'script_download'].forEach(function (t) {
+    ['package', 'action', 'workflow', 'docker_image', 'script_download',
+     'precommit_hook', 'terraform_module', 'git_submodule', 'dev_tool', 'build_tool'].forEach(function (t) {
       var el = document.getElementById('count-' + t);
       if (el) el.textContent = '(' + (counts[t] || 0) + ')';
     });
@@ -600,6 +601,104 @@
       });
     });
   });
+
+  /* =======================================================
+     Depth Slider
+     ======================================================= */
+  var depthSlider = document.getElementById('depth-slider');
+  var depthValue = document.getElementById('depth-value');
+  if (depthSlider) {
+    depthSlider.addEventListener('input', function () {
+      var depth = parseInt(depthSlider.value, 10);
+      if (depthValue) {
+        depthValue.textContent = depth === 0 ? 'All' : String(depth);
+      }
+      applyDepthFilter(depth);
+    });
+  }
+
+  function applyDepthFilter(maxDepth) {
+    if (!window._graphRefs) return;
+    var refs = window._graphRefs;
+
+    if (maxDepth === 0) {
+      // Show all nodes
+      refs.node.style('display', null);
+      refs.link.style('display', null);
+      refs.label.style('display', null);
+      return;
+    }
+
+    // Compute depth for each node via BFS from root nodes.
+    var nodeDepth = computeNodeDepths(refs.data);
+
+    refs.node.style('display', function (d) {
+      var d2 = nodeDepth[d.id];
+      return (d2 !== undefined && d2 <= maxDepth) ? null : 'none';
+    });
+    refs.link.style('display', function (d) {
+      var srcId = typeof d.source === 'object' ? d.source.id : d.source;
+      var tgtId = typeof d.target === 'object' ? d.target.id : d.target;
+      var srcDepth = nodeDepth[srcId];
+      var tgtDepth = nodeDepth[tgtId];
+      return (srcDepth !== undefined && srcDepth <= maxDepth &&
+              tgtDepth !== undefined && tgtDepth <= maxDepth) ? null : 'none';
+    });
+    refs.label.style('display', function (d) {
+      var d2 = nodeDepth[d.id];
+      return (d2 !== undefined && d2 <= maxDepth) ? null : 'none';
+    });
+  }
+
+  function computeNodeDepths(data) {
+    // Build adjacency (source→targets) and reverse adjacency.
+    var adjTo = {};    // forward: from → [to]
+    var adjFrom = {};  // reverse: to → [from]
+    data.links.forEach(function (l) {
+      var srcId = typeof l.source === 'object' ? l.source.id : l.source;
+      var tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+      if (!adjTo[srcId]) adjTo[srcId] = [];
+      adjTo[srcId].push(tgtId);
+      if (!adjFrom[tgtId]) adjFrom[tgtId] = [];
+      adjFrom[tgtId].push(srcId);
+    });
+
+    // Root nodes = nodes with no incoming edges.
+    var allIds = {};
+    data.nodes.forEach(function (n) { allIds[n.id] = true; });
+    var roots = [];
+    data.nodes.forEach(function (n) {
+      if (!adjFrom[n.id] || adjFrom[n.id].length === 0) {
+        roots.push(n.id);
+      }
+    });
+
+    // BFS from roots.
+    var depth = {};
+    var queue = [];
+    roots.forEach(function (id) {
+      depth[id] = 0;
+      queue.push(id);
+    });
+
+    while (queue.length > 0) {
+      var current = queue.shift();
+      var children = adjTo[current] || [];
+      children.forEach(function (child) {
+        if (depth[child] === undefined) {
+          depth[child] = depth[current] + 1;
+          queue.push(child);
+        }
+      });
+    }
+
+    // Any remaining unreachable nodes get depth 0.
+    data.nodes.forEach(function (n) {
+      if (depth[n.id] === undefined) depth[n.id] = 0;
+    });
+
+    return depth;
+  }
 
   /* =======================================================
      Zoom Controls + Sidebar Toggle
