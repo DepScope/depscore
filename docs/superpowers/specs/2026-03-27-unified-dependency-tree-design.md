@@ -251,6 +251,58 @@ while queue not empty:
 
 Key: when cache has the dependency list, we skip re-fetching/re-parsing but still walk children to build this scan's graph edges.
 
+## Mutable Ref Risk Detection
+
+Dependencies pinned to mutable refs (branches, movable tags) are a **critical security risk**. The dependency can change under you without any action on your part. This is a proven attack vector — the `tj-actions/changed-files` incident (2025) exploited exactly this: a tag was repointed to a malicious commit, compromising every workflow that used it without SHA pinning.
+
+### Risk classification
+
+| Ref type | Mutability | Risk | Example |
+|---|---|---|---|
+| SHA | Immutable | None | `actions/checkout@abc123def456` |
+| Digest | Immutable | None | `python@sha256:abc123` |
+| Exact version tag | Low mutability | Low | `v4.2.1` (rarely moved, but possible) |
+| Semver range | Mutable at publish | Medium | `^4.0.0`, `~1.2.3` (new versions auto-resolve) |
+| Major tag | Mutable | High | `v4` (regularly repointed to latest minor) |
+| Branch | Constantly mutable | Critical | `main`, `master`, `latest` |
+| Unpinned | No ref at all | Critical | `uses: actions/checkout` (no version) |
+
+### Detection across all dependency sources
+
+Every resolver reports the pinning quality of each ref it finds:
+
+| Source | Immutable example | Mutable example |
+|---|---|---|
+| GitHub Actions | `uses: x@sha` | `uses: x@main`, `uses: x@v4` |
+| Pre-commit hooks | `rev: abc123sha` | `rev: main`, `rev: v1` |
+| Terraform modules | `version = "1.2.3"` | `ref = "main"` |
+| Git submodules | Specific SHA in `.gitmodules` | Branch tracking |
+| Docker images | `image@sha256:abc` | `image:latest` |
+| Dev tools | `.tool-versions: python 3.12.1` | No pinning / `latest` |
+| Package deps | Lockfile with exact versions | Manifest-only with ranges |
+
+### Reporting
+
+Mutable refs get prominent treatment in all outputs:
+
+- **Web UI:** Dedicated "Mutable Refs" tab showing all non-immutable pins, sorted by risk. Red highlight on critical (branch/unpinned).
+- **ASCII tree:** Mutable refs get a `⚡` marker: `[action] actions/checkout@v4 ⚡MUTABLE`
+- **TUI walker:** Filter mode to show only mutable refs
+- **Summary stats:** "X of Y dependencies use mutable refs (Z critical)"
+
+### Scoring impact
+
+Mutable refs affect the "Version Pinning" factor in the reputation score:
+
+- SHA/Digest → 100 (full score)
+- Exact version → 85
+- Semver range (with lockfile) → 70
+- Major tag → 40
+- Branch → 20
+- Unpinned → 0
+
+For actions and pre-commit hooks specifically (where tag-repointing attacks are proven), major tag pinning gets an additional risk flag beyond the score penalty — it's called out as a specific actionable finding: "Pin to SHA `X` instead of tag `vN`."
+
 ## CVE Integration
 
 Post-processing pass after the crawler finishes, not part of the BFS loop.
