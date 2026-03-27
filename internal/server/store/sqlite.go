@@ -86,6 +86,10 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
 
+	// Migrate: add new columns for existing databases (idempotent, errors ignored).
+	_, _ = db.Exec("ALTER TABLE graph_nodes ADD COLUMN project_id TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE graph_nodes ADD COLUMN version_key TEXT DEFAULT ''")
+
 	return &SQLiteStore{db: db}, nil
 }
 
