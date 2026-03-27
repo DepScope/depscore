@@ -24,7 +24,7 @@ func TestPackageResolver_Detect_NPM(t *testing.T) {
 	assert.Equal(t, "lodash", refs[0].Name)
 	assert.Equal(t, "^4.17.21", refs[0].Ref)
 	assert.Equal(t, "npm", refs[0].Ecosystem)
-	assert.Equal(t, graph.PinningNA, refs[0].Pinning)
+	assert.Equal(t, graph.PinningSemverRange, refs[0].Pinning)
 }
 
 func TestPackageResolver_Detect_NPM_WithDevDeps(t *testing.T) {
