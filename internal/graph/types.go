@@ -13,7 +13,11 @@ const (
 	NodeWorkflow                       // workflow file
 	NodeDockerImage                    // container base image
 	NodeScriptDownload                 // curl/wget binary in CI steps
-	// Future: NodeHook, NodeTerraformModule, NodeGitSubmodule, NodeBuildTool, NodeOSPackage, NodeVendoredCode
+	NodePrecommitHook                  // .pre-commit-config.yaml hook
+	NodeTerraformModule                // Terraform/OpenTofu module
+	NodeGitSubmodule                   // .gitmodules entry
+	NodeDevTool                        // .tool-versions, .mise.toml entry
+	NodeBuildTool                      // Makefile/Taskfile that installs things
 )
 
 func (t NodeType) String() string {
@@ -30,6 +34,16 @@ func (t NodeType) String() string {
 		return "docker_image"
 	case NodeScriptDownload:
 		return "script_download"
+	case NodePrecommitHook:
+		return "precommit_hook"
+	case NodeTerraformModule:
+		return "terraform_module"
+	case NodeGitSubmodule:
+		return "git_submodule"
+	case NodeDevTool:
+		return "dev_tool"
+	case NodeBuildTool:
+		return "build_tool"
 	default:
 		return "unknown"
 	}
@@ -47,7 +61,11 @@ const (
 	EdgeResolvesTo                 // action → repo (tag→SHA)
 	EdgePullsImage                 // workflow/action → docker_image
 	EdgeDownloads                  // workflow → script_download
-	// Future: EdgeUsesHook, EdgeUsesModule, EdgeIncludesSubmodule, EdgeBuiltWith, EdgeInstallsOSPkg, EdgeVendors, EdgeAttests
+	EdgeUsesHook                   // workflow/repo → precommit_hook
+	EdgeUsesModule                 // config → terraform_module
+	EdgeIncludesSubmodule          // repo → git_submodule
+	EdgeUsesTool                   // config → dev_tool
+	EdgeBuiltWith                  // repo → build_tool
 )
 
 func (t EdgeType) String() string {
@@ -68,6 +86,16 @@ func (t EdgeType) String() string {
 		return "pulls_image"
 	case EdgeDownloads:
 		return "downloads"
+	case EdgeUsesHook:
+		return "uses_hook"
+	case EdgeUsesModule:
+		return "uses_module"
+	case EdgeIncludesSubmodule:
+		return "includes_submodule"
+	case EdgeUsesTool:
+		return "uses_tool"
+	case EdgeBuiltWith:
+		return "built_with"
 	default:
 		return "unknown"
 	}
@@ -80,6 +108,7 @@ const (
 	PinningSHA          PinningQuality = iota // immutable hash
 	PinningDigest                             // Docker image digest
 	PinningExactVersion                       // exact version tag (e.g., v4.2.0)
+	PinningSemverRange                        // semver range constraint (e.g., ^1.2.0, ~2.3)
 	PinningMajorTag                           // major version tag (e.g., v4)
 	PinningBranch                             // branch name (e.g., main)
 	PinningUnpinned                           // no version reference
@@ -94,6 +123,8 @@ func (p PinningQuality) String() string {
 		return "digest"
 	case PinningExactVersion:
 		return "exact_version"
+	case PinningSemverRange:
+		return "semver_range"
 	case PinningMajorTag:
 		return "major_tag"
 	case PinningBranch:
@@ -109,15 +140,17 @@ func (p PinningQuality) String() string {
 
 // Node represents a single entity in the supply chain graph.
 type Node struct {
-	ID       string         // e.g., "package:python/litellm@1.82.8"
-	Type     NodeType
-	Name     string
-	Version  string         // resolved version or SHA
-	Ref      string         // original reference (tag, branch, constraint)
-	Score    int            // 0-100 reputation score
-	Risk     core.RiskLevel
-	Pinning  PinningQuality
-	Metadata map[string]any // ecosystem-specific data
+	ID         string         // e.g., "package:python/litellm@1.82.8"
+	Type       NodeType
+	Name       string
+	Version    string         // resolved version or SHA
+	Ref        string         // original reference (tag, branch, constraint)
+	Score      int            // 0-100 reputation score
+	Risk       core.RiskLevel
+	Pinning    PinningQuality
+	Metadata   map[string]any // ecosystem-specific data
+	ProjectID  string         // FK → cache projects.id
+	VersionKey string         // FK → cache project_versions.version_key
 }
 
 // Edge represents a relationship between two nodes.

@@ -107,7 +107,7 @@ func TestBlastRadius_PackageMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		rawBody, _ := io.ReadAll(resp.Body)
@@ -163,7 +163,7 @@ func TestBlastRadius_PackageMode_NoMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -191,7 +191,7 @@ func TestBlastRadius_InvalidMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", resp.StatusCode)
@@ -208,7 +208,7 @@ func TestBlastRadius_ScanNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", resp.StatusCode)
@@ -226,7 +226,7 @@ func TestBlastRadius_PackageMode_MissingFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("expected 400 for missing range, got %d", resp.StatusCode)
@@ -244,7 +244,7 @@ func TestBlastRadius_CVEMode_MissingCVEID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("expected 400 for missing cve_id, got %d", resp.StatusCode)
@@ -262,7 +262,7 @@ func TestBlastRadius_Paths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -295,7 +295,7 @@ func TestSimulate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("POST: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			rawBody, _ := io.ReadAll(resp.Body)
@@ -319,7 +319,7 @@ func TestSimulate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("POST: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -342,7 +342,7 @@ func TestSimulate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("POST: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("expected 400, got %d", resp.StatusCode)
@@ -355,7 +355,7 @@ func TestSimulate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("POST: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("expected 404, got %d", resp.StatusCode)

@@ -55,23 +55,23 @@ runs:
 	encodedActionYAML := base64.StdEncoding.EncodeToString([]byte(actionYAML))
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
+		switch r.URL.Path {
 		// Tag resolution for actions/checkout@v4
-		case r.URL.Path == "/repos/actions/checkout/git/ref/tags/v4":
-			json.NewEncoder(w).Encode(map[string]any{
+		case "/repos/actions/checkout/git/ref/tags/v4":
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"object": map[string]string{
 					"sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 			})
 		// action.yml for actions/checkout
-		case r.URL.Path == "/repos/actions/checkout/contents/action.yml":
-			json.NewEncoder(w).Encode(map[string]any{
+		case "/repos/actions/checkout/contents/action.yml":
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"content":  encodedActionYAML,
 				"encoding": "base64",
 			})
 		// action.yml for actions/setup-node (already SHA-pinned, skip tag resolution)
-		case r.URL.Path == "/repos/actions/setup-node/contents/action.yml":
-			json.NewEncoder(w).Encode(map[string]any{
+		case "/repos/actions/setup-node/contents/action.yml":
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"content":  encodedActionYAML,
 				"encoding": "base64",
 			})

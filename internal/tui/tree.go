@@ -82,13 +82,6 @@ func (m Model) renderTree(maxHeight, maxWidth int) string {
 	}
 
 	// Build the indentation context: for each visible node, compute depth and whether it's last child.
-	type treeInfo struct {
-		nodeID string
-		depth  int
-		isLast bool
-		parent string
-	}
-
 	// We need to walk the tree structure to compute proper prefixes.
 	// Rebuild a depth map by walking the tree.
 	depthMap := make(map[string]int)

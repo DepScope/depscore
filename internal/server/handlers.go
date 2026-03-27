@@ -168,15 +168,17 @@ func (s *Server) runScan(ctx context.Context, id, rawURL, profile string) {
 			nodes := make([]store.GraphNode, 0, len(g.Nodes))
 			for _, n := range g.Nodes {
 				nodes = append(nodes, store.GraphNode{
-					NodeID:   n.ID,
-					Type:     n.Type.String(),
-					Name:     n.Name,
-					Version:  n.Version,
-					Ref:      n.Ref,
-					Score:    n.Score,
-					Risk:     string(n.Risk),
-					Pinning:  n.Pinning.String(),
-					Metadata: n.Metadata,
+					NodeID:     n.ID,
+					Type:       n.Type.String(),
+					Name:       n.Name,
+					Version:    n.Version,
+					Ref:        n.Ref,
+					Score:      n.Score,
+					Risk:       string(n.Risk),
+					Pinning:    n.Pinning.String(),
+					Metadata:   n.Metadata,
+					ProjectID:  n.ProjectID,
+					VersionKey: n.VersionKey,
 				})
 			}
 			edges := make([]store.GraphEdge, 0, len(g.Edges))

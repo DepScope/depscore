@@ -29,12 +29,12 @@ func TestListOrgRepos_TwoRepos(t *testing.T) {
 		if pageParam == "" || pageParam == "1" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write(page1JSON)
+			_, _ = w.Write(page1JSON)
 		} else {
 			// Second page: empty — signals end of pagination
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("[]"))
+			_, _ = w.Write([]byte("[]"))
 		}
 	}))
 	defer srv.Close()
@@ -60,12 +60,12 @@ func TestListOrgRepos_Pagination(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		switch pageParam {
 		case "", "1":
-			w.Write(page1JSON)
+			_, _ = w.Write(page1JSON)
 		case "2":
-			w.Write(page2JSON)
+			_, _ = w.Write(page2JSON)
 		default:
 			// Page 3+: empty, stop pagination
-			w.Write([]byte("[]"))
+			_, _ = w.Write([]byte("[]"))
 		}
 	}))
 	defer srv.Close()
@@ -109,7 +109,7 @@ func TestListOrgRepos_AuthHeader(t *testing.T) {
 		capturedAuth = r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("[]"))
+		_, _ = w.Write([]byte("[]"))
 	}))
 	defer srv.Close()
 

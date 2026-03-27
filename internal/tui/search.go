@@ -4,7 +4,6 @@ package tui
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -83,12 +82,4 @@ func (m *Model) SetSearchQuery(q string) {
 	m.searchInput.SetValue(q)
 	m.rebuildVisible()
 	m.clampCursor()
-}
-
-// Exported textinput constructor for tests that need it.
-func newSearchInput() textinput.Model {
-	ti := textinput.New()
-	ti.Placeholder = "search..."
-	ti.CharLimit = 64
-	return ti
 }

@@ -43,15 +43,17 @@ type GraphStore interface {
 
 // GraphNode is the storage representation of a graph node.
 type GraphNode struct {
-	NodeID   string
-	Type     string
-	Name     string
-	Version  string
-	Ref      string
-	Score    int
-	Risk     string
-	Pinning  string
-	Metadata map[string]any
+	NodeID     string
+	Type       string
+	Name       string
+	Version    string
+	Ref        string
+	Score      int
+	Risk       string
+	Pinning    string
+	Metadata   map[string]any
+	ProjectID  string
+	VersionKey string
 }
 
 // GraphEdge is the storage representation of a graph edge.

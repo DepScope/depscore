@@ -62,7 +62,7 @@ func listOrgReposFromBase(ctx context.Context, org, token, baseURL string) ([]st
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != 200 {
 			return nil, fmt.Errorf("GitHub API returned %d for org %s", resp.StatusCode, org)
