@@ -468,19 +468,6 @@ func (s *Server) handleGraphAPI(w http.ResponseWriter, r *http.Request) {
 		links = []d3Link{}
 	}
 
-	// Filter out links that reference non-existent nodes (e.g., phantom "root").
-	nodeIDs := make(map[string]bool, len(nodes))
-	for _, n := range nodes {
-		nodeIDs[n.ID] = true
-	}
-	validLinks := make([]d3Link, 0, len(links))
-	for _, l := range links {
-		if nodeIDs[l.Source] && nodeIDs[l.Target] {
-			validLinks = append(validLinks, l)
-		}
-	}
-	links = validLinks
-
 	// Build summary counts by node type.
 	byType := make(map[string]int)
 	for _, n := range nodes {

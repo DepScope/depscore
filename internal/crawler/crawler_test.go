@@ -69,8 +69,8 @@ func TestCrawler_SingleLevel(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// 3 dependency nodes (root is implicit)
-	assert.Equal(t, 3, len(result.Graph.Nodes), "expected 3 nodes")
+	// 3 dependency nodes + 1 root node
+	assert.Equal(t, 4, len(result.Graph.Nodes), "expected 4 nodes (3 deps + root)")
 	assert.Equal(t, 3, len(result.Graph.Edges), "expected 3 edges")
 	assert.Empty(t, result.Errors)
 }
@@ -122,8 +122,8 @@ func TestCrawler_Dedup(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// One node for the shared dep, but two edges (one from each resolver).
-	assert.Equal(t, 1, len(result.Graph.Nodes), "expected 1 unique node")
+	// One node for the shared dep + 1 root node, two edges (one from each resolver).
+	assert.Equal(t, 2, len(result.Graph.Nodes), "expected 2 nodes (1 unique dep + root)")
 	assert.Equal(t, 2, len(result.Graph.Edges), "expected 2 edges to same node")
 }
 
@@ -177,12 +177,15 @@ func TestCrawler_MaxDepth(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Depth 1: dep-0, Depth 2: dep-1, Depth 3: dep-2 (stop here).
-	assert.Equal(t, 3, len(result.Graph.Nodes), "expected 3 nodes (depth 1,2,3)")
+	// Depth 1: dep-0, Depth 2: dep-1, Depth 3: dep-2 (stop here) + 1 root node.
+	assert.Equal(t, 4, len(result.Graph.Nodes), "expected 4 nodes (3 deps at depth 1,2,3 + root)")
 	assert.Equal(t, 3, len(result.Graph.Edges), "expected 3 edges")
 
-	// Verify dep-3 and dep-4 are NOT in the graph.
+	// Verify dep-3 and dep-4 are NOT in the graph (skip the root node check).
 	for _, n := range result.Graph.Nodes {
+		if n.ID == "root" {
+			continue
+		}
 		assert.NotContains(t, n.Name, "dep-3")
 		assert.NotContains(t, n.Name, "dep-4")
 	}
@@ -272,8 +275,8 @@ func TestCrawler_CacheHit(t *testing.T) {
 	// so Resolve was NOT called for child-a.
 	assert.Equal(t, 1, resolveCallCount, "Resolve should be called once (for cached-pkg, not for child-a)")
 
-	// Both cached-pkg and child-a should appear in the graph.
-	assert.Equal(t, 2, len(result.Graph.Nodes), "expected 2 nodes (cached-pkg + child-a)")
+	// Both cached-pkg and child-a should appear in the graph, plus the root node.
+	assert.Equal(t, 3, len(result.Graph.Nodes), "expected 3 nodes (cached-pkg + child-a + root)")
 	assert.GreaterOrEqual(t, result.Stats.CacheHits, 1, "expected at least 1 cache hit")
 }
 
@@ -311,12 +314,15 @@ func TestCrawler_ErrorNode(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Should have 2 nodes: one error node for broken-pkg, one normal for good-pkg.
-	assert.Equal(t, 2, len(result.Graph.Nodes), "expected 2 nodes")
+	// Should have 3 nodes: root + one error node for broken-pkg + one normal for good-pkg.
+	assert.Equal(t, 3, len(result.Graph.Nodes), "expected 3 nodes (root + error + good)")
 
-	// Find the error node.
+	// Find the error node (skip the root node).
 	var errorNode *graph.Node
 	for _, n := range result.Graph.Nodes {
+		if n.ID == "root" {
+			continue
+		}
 		if n.Risk == core.RiskCritical && n.Metadata != nil {
 			if _, ok := n.Metadata["error"]; ok {
 				errorNode = n
@@ -387,7 +393,7 @@ func TestCrawler_NilCache(t *testing.T) {
 	result, err := c.Crawl(context.Background(), root)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, 1, len(result.Graph.Nodes))
+	assert.Equal(t, 2, len(result.Graph.Nodes)) // 1 dep + root
 }
 
 // TestCrawler_ErrorNodeMetadata verifies that when a resolver returns an error,
@@ -418,12 +424,15 @@ func TestCrawler_ErrorNodeMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Should have exactly 1 error node.
-	require.Equal(t, 1, len(result.Graph.Nodes), "expected 1 error node")
+	// Should have exactly 2 nodes: root + 1 error node.
+	require.Equal(t, 2, len(result.Graph.Nodes), "expected 2 nodes (root + error node)")
 
-	// Find the error node and verify its properties.
+	// Find the error node (skip the root node) and verify its properties.
 	var errorNode *graph.Node
 	for _, n := range result.Graph.Nodes {
+		if n.ID == "root" {
+			continue
+		}
 		errorNode = n
 		break
 	}
@@ -539,8 +548,8 @@ func TestCrawler_ProcessCachedDeps_EdgeTypes(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Parent + all children should be in graph.
-	assert.Equal(t, 1+len(edgeScopes), len(result.Graph.Nodes))
+	// Root + parent + all children should be in graph.
+	assert.Equal(t, 2+len(edgeScopes), len(result.Graph.Nodes))
 }
 
 // ---------------------------------------------------------------------------

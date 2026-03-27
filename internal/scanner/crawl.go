@@ -74,6 +74,11 @@ func CrawlDir(ctx context.Context, dir string, opts CrawlOptions) (*crawler.Craw
 		return nil, fmt.Errorf("crawl: %w", err)
 	}
 
+	// Set root node name to directory basename.
+	if rootNode := result.Graph.Node(crawler.RootNodeID); rootNode != nil {
+		rootNode.Name = filepath.Base(dir)
+	}
+
 	// 5. Run CVE pass if not disabled.
 	if !opts.NoCVE {
 		osvClient := vuln.NewOSVClient()
@@ -156,6 +161,11 @@ func CrawlURL(ctx context.Context, url string, opts CrawlOptions) (*crawler.Craw
 	result, err := c.Crawl(ctx, tree)
 	if err != nil {
 		return nil, fmt.Errorf("crawl: %w", err)
+	}
+
+	// Set root node name to the scanned URL.
+	if rootNode := result.Graph.Node(crawler.RootNodeID); rootNode != nil {
+		rootNode.Name = url
 	}
 
 	// Run CVE pass if not disabled.

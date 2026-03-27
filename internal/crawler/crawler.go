@@ -62,12 +62,26 @@ type resolveResult struct {
 	source   DepSourceType
 }
 
+// RootNodeID is the well-known node ID for the scanned project root.
+const RootNodeID = "root"
+
 // Crawl performs a BFS crawl starting from root and returns the resulting graph,
 // statistics, and any errors encountered.
 func (c *Crawler) Crawl(ctx context.Context, root FileTree) (*CrawlResult, error) {
 	// Apply timeout.
 	ctx, cancel := context.WithTimeout(ctx, c.opts.Timeout)
 	defer cancel()
+
+	// Add a real root node so edges from root to first-level deps are valid.
+	c.graph.AddNode(&graph.Node{
+		ID:       RootNodeID,
+		Type:     graph.NodeRepo,
+		Name:     "project",
+		Score:    100,
+		Risk:     core.RiskLow,
+		Pinning:  graph.PinningNA,
+		Metadata: map[string]any{},
+	})
 
 	queue := []queueItem{{Contents: root, Depth: 0, ParentVK: ""}}
 	maxDepthHit := 0
