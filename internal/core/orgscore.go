@@ -24,8 +24,10 @@ var knownCorporateOrgs = map[string]bool{
 //   - "individual" – everything else
 func ClassifyOrg(projectID string, trustedOrgs []string) string {
 	// Check own-org prefixes first (highest trust).
+	// Match at path boundary: "github.com/google" matches "github.com/google/repo"
+	// but NOT "github.com/google-research/repo".
 	for _, org := range trustedOrgs {
-		if strings.HasPrefix(projectID, org) {
+		if projectID == org || strings.HasPrefix(projectID, org+"/") {
 			return "own"
 		}
 	}
