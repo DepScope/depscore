@@ -101,6 +101,21 @@ func TestScanOrg_NoToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "GITHUB_TOKEN")
 }
 
+// TestListOrgRepos_Empty verifies that an empty first page returns an empty
+// slice (not nil) and no error.
+func TestListOrgRepos_Empty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+
+	repos, err := listOrgReposFromBase(context.Background(), "emptyorg", "tok", srv.URL)
+	require.NoError(t, err)
+	assert.Empty(t, repos)
+}
+
 // TestListOrgRepos_AuthHeader verifies that the Authorization header is set
 // when a token is provided.
 func TestListOrgRepos_AuthHeader(t *testing.T) {

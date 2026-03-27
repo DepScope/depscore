@@ -120,6 +120,90 @@ func TestWalkerModel_DrillAndBack(t *testing.T) {
 	assert.Equal(t, "workflow:ci.yml", w.children[0])
 }
 
+func TestFormatChildLine(t *testing.T) {
+	// Helper: build a minimal walker with a graph so formatChildLine can check neighbors.
+	makeWalker := func(nodes []*graph.Node, edges []*graph.Edge) *WalkerModel {
+		g := graph.New()
+		for _, n := range nodes {
+			g.AddNode(n)
+		}
+		for _, e := range edges {
+			g.AddEdge(e)
+		}
+		return &WalkerModel{graph: g, width: 80}
+	}
+
+	t.Run("node with version shows version", func(t *testing.T) {
+		n := &graph.Node{
+			ID: "package:foo", Type: graph.NodePackage,
+			Name: "foo", Version: "1.2.3", Ref: "",
+			Score: 85, Risk: core.RiskLow, Pinning: graph.PinningNA,
+			Metadata: map[string]any{},
+		}
+		w := makeWalker([]*graph.Node{n}, nil)
+		line := w.formatChildLine(n)
+		assert.Contains(t, line, "foo@1.2.3")
+		assert.Contains(t, line, "85")
+	})
+
+	t.Run("node without version but with ref shows ref", func(t *testing.T) {
+		n := &graph.Node{
+			ID: "action:test/action", Type: graph.NodeAction,
+			Name: "test/action", Version: "", Ref: "v4",
+			Score: 70, Risk: core.RiskMedium, Pinning: graph.PinningMajorTag,
+			Metadata: map[string]any{},
+		}
+		w := makeWalker([]*graph.Node{n}, nil)
+		line := w.formatChildLine(n)
+		assert.Contains(t, line, "test/action@v4")
+	})
+
+	t.Run("node with neither version nor ref shows dash", func(t *testing.T) {
+		n := &graph.Node{
+			ID: "package:bare", Type: graph.NodePackage,
+			Name: "bare", Version: "", Ref: "",
+			Score: 50, Risk: core.RiskHigh, Pinning: graph.PinningNA,
+			Metadata: map[string]any{},
+		}
+		w := makeWalker([]*graph.Node{n}, nil)
+		line := w.formatChildLine(n)
+		assert.Contains(t, line, "bare@-")
+	})
+
+	t.Run("node with children shows > arrow", func(t *testing.T) {
+		parent := &graph.Node{
+			ID: "package:parent", Type: graph.NodePackage,
+			Name: "parent", Version: "1.0", Score: 80,
+			Risk: core.RiskLow, Pinning: graph.PinningNA,
+			Metadata: map[string]any{},
+		}
+		child := &graph.Node{
+			ID: "package:child", Type: graph.NodePackage,
+			Name: "child", Version: "2.0", Score: 70,
+			Risk: core.RiskMedium, Pinning: graph.PinningNA,
+			Metadata: map[string]any{},
+		}
+		edge := &graph.Edge{From: "package:parent", To: "package:child", Type: graph.EdgeDependsOn}
+		w := makeWalker([]*graph.Node{parent, child}, []*graph.Edge{edge})
+		line := w.formatChildLine(parent)
+		assert.Contains(t, line, ">")
+	})
+
+	t.Run("leaf node shows spaces instead of arrow", func(t *testing.T) {
+		leaf := &graph.Node{
+			ID: "package:leaf", Type: graph.NodePackage,
+			Name: "leaf", Version: "1.0", Score: 90,
+			Risk: core.RiskLow, Pinning: graph.PinningNA,
+			Metadata: map[string]any{},
+		}
+		w := makeWalker([]*graph.Node{leaf}, nil)
+		line := w.formatChildLine(leaf)
+		// Leaf nodes should NOT have the ">" arrow
+		// The line starts with "  " (two spaces) for non-children, not " >"
+		assert.NotContains(t, line, ">")
+	})
+}
+
 func TestWalkerModel_CursorBounds(t *testing.T) {
 	g := graph.New()
 	g.AddNode(&graph.Node{
