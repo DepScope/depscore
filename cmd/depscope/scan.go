@@ -22,6 +22,8 @@ func init() {
 	scanCmd.Flags().Bool("no-cve", false, "skip CVE scanning (faster, reputation-only)")
 	scanCmd.Flags().StringSlice("only", nil, "filter to specific ecosystems: python, go, rust, npm, php")
 	scanCmd.Flags().String("org", "", "scan all repos in a GitHub organization")
+	scanCmd.Flags().String("cache-db", "", "path to SQLite cache database")
+	scanCmd.Flags().StringSlice("trusted-orgs", nil, "trusted GitHub organization prefixes for org trust scoring")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -63,20 +65,21 @@ func runScan(cmd *cobra.Command, args []string) error {
 		cfg.Depth = d
 	}
 
-	maxFiles, _ := cmd.Flags().GetInt("max-files")
-
 	noCVE, _ := cmd.Flags().GetBool("no-cve")
-	only, _ := cmd.Flags().GetStringSlice("only")
-	opts := scanner.Options{
-		Profile:  cfg.Profile,
-		MaxFiles: maxFiles,
-		NoCVE:    noCVE,
-		Only:     only,
-	}
+	cacheDBPath, _ := cmd.Flags().GetString("cache-db")
+	trustedOrgs, _ := cmd.Flags().GetStringSlice("trusted-orgs")
 
 	// --org flag: scan all repos in a GitHub org and aggregate results.
 	org, _ := cmd.Flags().GetString("org")
 	if org != "" {
+		maxFiles, _ := cmd.Flags().GetInt("max-files")
+		only, _ := cmd.Flags().GetStringSlice("only")
+		opts := scanner.Options{
+			Profile:  cfg.Profile,
+			MaxFiles: maxFiles,
+			NoCVE:    noCVE,
+			Only:     only,
+		}
 		results, err := scanner.ScanOrg(cmd.Context(), org, opts)
 		if err != nil {
 			return err
@@ -108,14 +111,28 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Use the unified crawler for both local and remote targets.
+	crawlOpts := scanner.CrawlOptions{
+		Profile:     cfg.Profile,
+		MaxDepth:    cfg.Depth,
+		NoCVE:       noCVE,
+		TrustedOrgs: trustedOrgs,
+		CacheDBPath: cacheDBPath,
+	}
+
 	var scanResult *core.ScanResult
 	if resolve.IsRemoteURL(target) {
-		scanResult, err = scanner.ScanURL(cmd.Context(), target, opts)
+		crawlResult, crawlErr := scanner.CrawlURL(cmd.Context(), target, crawlOpts)
+		if crawlErr != nil {
+			return crawlErr
+		}
+		scanResult = scanner.CrawlResultToScanResult(crawlResult, cfg.Profile)
 	} else {
-		scanResult, err = scanner.ScanDir(target, opts)
-	}
-	if err != nil {
-		return err
+		crawlResult, crawlErr := scanner.CrawlDir(cmd.Context(), target, crawlOpts)
+		if crawlErr != nil {
+			return crawlErr
+		}
+		scanResult = scanner.CrawlResultToScanResult(crawlResult, cfg.Profile)
 	}
 
 	// Write output.
@@ -150,4 +167,3 @@ func loadConfig(cmd *cobra.Command) (config.Config, error) {
 	profile, _ := cmd.Flags().GetString("profile")
 	return config.ProfileByName(profile), nil
 }
-
