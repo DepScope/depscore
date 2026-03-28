@@ -138,6 +138,38 @@ nodejs 20.11.0
 	assert.NotNil(t, result.Stats.ByType, "ByType stats should be populated")
 	assert.Equal(t, result.Stats.TotalNodes, len(result.Graph.Nodes), "TotalNodes should match graph size")
 	assert.Equal(t, result.Stats.TotalEdges, len(result.Graph.Edges), "TotalEdges should match graph size")
+
+	// -- Tree connectivity: every node should be reachable from root via BFS --
+	reachable := make(map[string]bool)
+	queue := []string{crawler.RootNodeID}
+	reachable[crawler.RootNodeID] = true
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+		for _, neighbor := range result.Graph.Neighbors(curr) {
+			if !reachable[neighbor] {
+				reachable[neighbor] = true
+				queue = append(queue, neighbor)
+			}
+		}
+	}
+	for nodeID := range result.Graph.Nodes {
+		assert.True(t, reachable[nodeID],
+			"node %s is not reachable from root", nodeID)
+	}
+
+	// -- Root node should exist and be of type NodeRepo --
+	rootNode := result.Graph.Node(crawler.RootNodeID)
+	require.NotNil(t, rootNode, "root node should exist")
+	assert.Equal(t, graph.NodeRepo, rootNode.Type)
+
+	// -- Every edge should reference existing nodes --
+	for _, e := range result.Graph.Edges {
+		assert.NotNil(t, result.Graph.Node(e.From),
+			"edge source %s does not exist", e.From)
+		assert.NotNil(t, result.Graph.Node(e.To),
+			"edge target %s does not exist", e.To)
+	}
 }
 
 // TestIntegration_MultiEcosystem verifies that a FileTree containing go.mod,
