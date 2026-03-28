@@ -261,3 +261,127 @@ func TestCVEPass_CancelledContext(t *testing.T) {
 	// Should not panic, just stop early.
 	_ = RunCVEPass(ctx, g, nil, nil)
 }
+
+// TestEcosystemForNode_FromProjectID verifies that ecosystemForNode falls back
+// to extracting and mapping ecosystem from node.ProjectID when metadata is empty.
+func TestEcosystemForNode_FromProjectID(t *testing.T) {
+	tests := []struct {
+		name      string
+		projectID string
+		metadata  map[string]any
+		want      string
+	}{
+		{
+			name:      "Go ecosystem from ProjectID",
+			projectID: "Go/github.com/foo/bar",
+			metadata:  map[string]any{},
+			want:      "Go",
+		},
+		{
+			name:      "npm ecosystem from ProjectID",
+			projectID: "npm/lodash",
+			metadata:  map[string]any{},
+			want:      "npm",
+		},
+		{
+			name:      "PyPI ecosystem from ProjectID",
+			projectID: "PyPI/requests",
+			metadata:  map[string]any{},
+			want:      "PyPI",
+		},
+		{
+			name:      "python maps to PyPI",
+			projectID: "python/requests",
+			metadata:  map[string]any{},
+			want:      "PyPI",
+		},
+		{
+			name:      "metadata takes precedence over ProjectID",
+			projectID: "Go/github.com/foo/bar",
+			metadata:  map[string]any{"ecosystem": "npm"},
+			want:      "npm",
+		},
+		{
+			name:      "empty metadata and empty ProjectID returns empty",
+			projectID: "",
+			metadata:  map[string]any{},
+			want:      "",
+		},
+		{
+			name:      "empty string in metadata falls back to ProjectID",
+			projectID: "npm/lodash",
+			metadata:  map[string]any{"ecosystem": ""},
+			want:      "npm",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := &graph.Node{
+				ID:        "test:" + tt.projectID,
+				ProjectID: tt.projectID,
+				Metadata:  tt.metadata,
+			}
+			got := ecosystemForNode(node)
+			if got != tt.want {
+				t.Errorf("ecosystemForNode() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestMapEcosystemToOSV verifies the mapping from raw identifiers to OSV names.
+func TestMapEcosystemToOSV(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"go", "Go"},
+		{"Go", "Go"},
+		{"npm", "npm"},
+		{"pypi", "PyPI"},
+		{"python", "PyPI"},
+		{"PyPI", "PyPI"},
+		{"crates.io", "crates.io"},
+		{"rust", "crates.io"},
+		{"packagist", "Packagist"},
+		{"php", "Packagist"},
+		{"Packagist", "Packagist"},
+		{"unknown", "unknown"},
+	}
+	for _, tt := range tests {
+		got := mapEcosystemToOSV(tt.input)
+		if got != tt.want {
+			t.Errorf("mapEcosystemToOSV(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+// TestCVEPass_EcosystemMapping verifies that the CVE pass uses the correct
+// ecosystem from ProjectID when looking up cached CVE data.
+func TestCVEPass_EcosystemMapping(t *testing.T) {
+	// Node with ProjectID set and a version, but no ecosystem in metadata.
+	node := &graph.Node{
+		ID:         "package:Go/github.com/foo/bar@1.0.0",
+		Type:       graph.NodePackage,
+		Name:       "github.com/foo/bar",
+		Version:    "1.0.0",
+		VersionKey: "Go/github.com/foo/bar@1.0.0",
+		ProjectID:  "Go/github.com/foo/bar",
+		Score:      80,
+		Metadata:   map[string]any{}, // no ecosystem in metadata
+	}
+
+	g := buildGraph(node)
+
+	// Run CVE pass with nil cache + nil client (cache-only mode).
+	errs := RunCVEPass(context.Background(), g, nil, nil)
+	if len(errs) != 0 {
+		t.Fatalf("expected no errors, got %v", errs)
+	}
+
+	// Node has a semver, so it should get cve_findings (empty list).
+	n := g.Nodes[node.ID]
+	if _, ok := n.Metadata["cve_findings"]; !ok {
+		t.Error("expected cve_findings to be set even without ecosystem in metadata")
+	}
+}

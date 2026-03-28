@@ -154,12 +154,14 @@ func scorePackageNode(
 	}
 
 	info, err := fetcher.Fetch(name, version)
-	var fetchResult *registry.FetchResult
 	if err != nil {
-		fetchResult = &registry.FetchResult{Err: err}
-	} else {
-		fetchResult = &registry.FetchResult{Info: info}
+		// Fetch failed — no registry data available. Score as CRITICAL.
+		n.Score = 0
+		n.Risk = core.RiskCritical
+		n.Metadata["ecosystem"] = registryEco
+		return nil
 	}
+	fetchResult := &registry.FetchResult{Info: info}
 
 	// Fetch VCS data if available.
 	var repoInfo *vcs.RepoInfo
@@ -197,6 +199,9 @@ func scorePackageNode(
 		n.Metadata["org_backing"] = fetchResult.Info.HasOrgBacking
 	}
 
+	// Store ecosystem in metadata so CVE pass can find it.
+	n.Metadata["ecosystem"] = registryEco
+
 	return nil
 }
 
@@ -209,7 +214,7 @@ func scoreGitNode(
 	repoCache map[string]*vcs.RepoInfo,
 ) {
 	// Start with pinning-based score.
-	baseScore := pinningScore(n.Pinning) + 20
+	baseScore := pinningScore(n.Pinning) + 10
 	if baseScore > 100 {
 		baseScore = 100
 	}

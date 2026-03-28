@@ -124,14 +124,41 @@ func semverForNode(n *graph.Node) string {
 }
 
 // ecosystemForNode returns the ecosystem string for an OSV query.
-// It checks node.Metadata["ecosystem"] first, then falls back to "".
+// It checks node.Metadata["ecosystem"] first, then extracts from
+// node.ProjectID (format: "ecosystem/name"), mapping common identifiers
+// to OSV ecosystem names.
 func ecosystemForNode(n *graph.Node) string {
 	if eco, ok := n.Metadata["ecosystem"]; ok {
-		if s, ok := eco.(string); ok {
+		if s, ok := eco.(string); ok && s != "" {
 			return s
 		}
 	}
+	// Fall back to extracting ecosystem from ProjectID.
+	if n.ProjectID != "" {
+		if i := strings.Index(n.ProjectID, "/"); i > 0 {
+			raw := n.ProjectID[:i]
+			return mapEcosystemToOSV(raw)
+		}
+	}
 	return ""
+}
+
+// mapEcosystemToOSV maps raw ecosystem identifiers to OSV ecosystem names.
+func mapEcosystemToOSV(eco string) string {
+	switch strings.ToLower(eco) {
+	case "go":
+		return "Go"
+	case "npm":
+		return "npm"
+	case "pypi", "python":
+		return "PyPI"
+	case "crates.io", "rust":
+		return "crates.io"
+	case "packagist", "php":
+		return "Packagist"
+	default:
+		return eco
+	}
 }
 
 // applyFindingsPenalty reduces score based on vulnerability severities.

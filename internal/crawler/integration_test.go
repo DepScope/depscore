@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/crawler"
 	"github.com/depscope/depscope/internal/crawler/resolvers"
 	"github.com/depscope/depscope/internal/graph"
@@ -254,4 +255,71 @@ require github.com/stretchr/testify v1.9.0
 		"expected at least one recognized package node")
 	assert.True(t, hasPrecommitNode || len(precommitNodes) > 0,
 		"expected at least one recognized precommit node")
+}
+
+// TestIntegration_ScoresReflectRisk creates nodes with different pinning
+// qualities, runs them through RunScorePass, and verifies that scores and
+// risk levels are ordered correctly. Tool/Script/BuildTool nodes use
+// pinning-only scoring (no network calls).
+func TestIntegration_ScoresReflectRisk(t *testing.T) {
+	g := graph.New()
+
+	// Root node (required by RunScorePass to skip).
+	g.AddNode(&graph.Node{
+		ID:       crawler.RootNodeID,
+		Type:     graph.NodeRepo,
+		Name:     "project",
+		Score:    100,
+		Pinning:  graph.PinningNA,
+		Metadata: make(map[string]any),
+	})
+
+	// SHA-pinned tool → should get highest score.
+	shaTool := &graph.Node{
+		ID:       "dev_tool:golang@sha256abc",
+		Type:     graph.NodeDevTool,
+		Name:     "golang",
+		Pinning:  graph.PinningSHA,
+		Metadata: make(map[string]any),
+	}
+	g.AddNode(shaTool)
+
+	// Exact-version tool → should get high score.
+	exactTool := &graph.Node{
+		ID:       "dev_tool:nodejs@20.11.0",
+		Type:     graph.NodeDevTool,
+		Name:     "nodejs",
+		Pinning:  graph.PinningExactVersion,
+		Metadata: make(map[string]any),
+	}
+	g.AddNode(exactTool)
+
+	// Unpinned tool → should get lowest score.
+	unpinnedTool := &graph.Node{
+		ID:       "dev_tool:ruby@latest",
+		Type:     graph.NodeDevTool,
+		Name:     "ruby",
+		Pinning:  graph.PinningUnpinned,
+		Metadata: make(map[string]any),
+	}
+	g.AddNode(unpinnedTool)
+
+	// Run scoring pass (tool nodes use pinning-only scoring, no network).
+	errs := crawler.RunScorePass(context.Background(), g, nil)
+	// Errors for package nodes are expected (no network), but tool nodes should be fine.
+	_ = errs
+
+	// Verify score ordering: SHA > ExactVersion > Unpinned.
+	assert.Greater(t, shaTool.Score, exactTool.Score,
+		"SHA-pinned score (%d) should be > exact-version score (%d)", shaTool.Score, exactTool.Score)
+	assert.Greater(t, exactTool.Score, unpinnedTool.Score,
+		"exact-version score (%d) should be > unpinned score (%d)", exactTool.Score, unpinnedTool.Score)
+
+	// Verify risk levels.
+	assert.Equal(t, core.RiskLow, shaTool.Risk,
+		"SHA-pinned tool should have LOW risk")
+	assert.Equal(t, core.RiskLow, exactTool.Risk,
+		"exact-version tool should have LOW risk")
+	assert.Equal(t, core.RiskCritical, unpinnedTool.Risk,
+		"unpinned tool should have CRITICAL risk")
 }
