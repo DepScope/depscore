@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/depscope/depscope/internal/cache"
+	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/crawler"
 	"github.com/depscope/depscope/internal/crawler/resolvers"
@@ -79,14 +80,18 @@ func CrawlDir(ctx context.Context, dir string, opts CrawlOptions) (*crawler.Craw
 		rootNode.Name = filepath.Base(dir)
 	}
 
-	// 5. Run CVE pass if not disabled.
+	// 5. Run scoring pass.
+	scoreErrors := crawler.RunScorePass(ctx, result.Graph, cacheDB)
+	result.Errors = append(result.Errors, scoreErrors...)
+
+	// 6. Run CVE pass if not disabled.
 	if !opts.NoCVE {
 		osvClient := vuln.NewOSVClient()
 		cveErrors := crawler.RunCVEPass(ctx, result.Graph, cacheDB, osvClient)
 		result.Errors = append(result.Errors, cveErrors...)
 	}
 
-	// 6. Run org trust scoring on all nodes.
+	// 7. Run org trust scoring on all nodes.
 	ownOrgFloor := 80 // default floor for own-org packages
 	for _, node := range result.Graph.Nodes {
 		orgType := core.ClassifyOrg(node.ProjectID, opts.TrustedOrgs)
@@ -168,6 +173,10 @@ func CrawlURL(ctx context.Context, url string, opts CrawlOptions) (*crawler.Craw
 		rootNode.Name = url
 	}
 
+	// Run scoring pass.
+	scoreErrors := crawler.RunScorePass(ctx, result.Graph, cacheDB)
+	result.Errors = append(result.Errors, scoreErrors...)
+
 	// Run CVE pass if not disabled.
 	if !opts.NoCVE {
 		osvClient := vuln.NewOSVClient()
@@ -187,6 +196,81 @@ func CrawlURL(ctx context.Context, url string, opts CrawlOptions) (*crawler.Craw
 	}
 
 	return result, nil
+}
+
+// CrawlResultToScanResult converts a CrawlResult to a ScanResult for backward
+// compatibility with existing report formatters. This extracts the conversion
+// logic from handlers.go into a reusable function.
+func CrawlResultToScanResult(result *crawler.CrawlResult, profile string) *core.ScanResult {
+	cfg := config.ProfileByName(profile)
+	g := result.Graph
+
+	var packages []core.PackageResult
+	var allIssues []core.Issue
+	directCount, transitiveCount := 0, 0
+	depsMap := make(map[string][]string)
+
+	for _, n := range g.Nodes {
+		eco := ""
+		if e, ok := n.Metadata["ecosystem"].(string); ok {
+			eco = e
+		}
+		if eco == "" && n.ProjectID != "" {
+			// Extract ecosystem from ProjectID like "go/github.com/foo"
+			if idx := strings.Index(n.ProjectID, "/"); idx > 0 {
+				eco = n.ProjectID[:idx]
+			}
+		}
+
+		risk := n.Risk
+		if risk == "" || risk == core.RiskUnknown {
+			risk = core.RiskLevelFromScore(n.Score)
+		}
+
+		pr := core.PackageResult{
+			Name:                n.Name,
+			Version:             n.Version,
+			Ecosystem:           eco,
+			OwnScore:            n.Score,
+			OwnRisk:             risk,
+			TransitiveRiskScore: n.Score,
+			TransitiveRisk:      risk,
+		}
+
+		// Count deps from graph edges.
+		children := g.Neighbors(n.ID)
+		pr.DependsOn = children
+		pr.DependsOnCount = len(children)
+		depsMap[n.Name] = children
+
+		packages = append(packages, pr)
+	}
+
+	// Count direct vs transitive (depth from edges).
+	hasIncoming := make(map[string]bool)
+	for _, e := range g.Edges {
+		if g.Nodes[e.From] != nil {
+			hasIncoming[e.To] = true
+		}
+	}
+	for nodeID := range g.Nodes {
+		if !hasIncoming[nodeID] {
+			directCount++
+		} else {
+			transitiveCount++
+		}
+	}
+
+	return &core.ScanResult{
+		Profile:        profile,
+		PassThreshold:  cfg.PassThreshold,
+		DirectDeps:     directCount,
+		TransitiveDeps: transitiveCount,
+		Packages:       packages,
+		AllIssues:      allIssues,
+		DepsMap:        depsMap,
+		Graph:          g,
+	}
 }
 
 // knownManifestFiles lists exact filenames to include in the file tree.
