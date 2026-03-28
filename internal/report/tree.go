@@ -67,7 +67,8 @@ func RenderTree(g *graph.Graph, opts TreeOptions) string {
 			continue
 		}
 
-		if !passesFilters(n, opts) {
+		// Root/repo nodes always pass filters — filters apply to children only.
+		if n.Type != graph.NodeRepo && !passesFilters(n, opts) {
 			continue
 		}
 
