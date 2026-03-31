@@ -196,6 +196,241 @@ func TestRunIndex(t *testing.T) {
 	assert.Contains(t, output2, "[skip")
 }
 
+// ---------------------------------------------------------------------------
+// extractNpmName
+// ---------------------------------------------------------------------------
+
+func TestExtractNpmName(t *testing.T) {
+	tests := []struct {
+		key  string
+		want string
+	}{
+		{"", ""},
+		{"node_modules/axios", "axios"},
+		{"node_modules/@scope/pkg", "@scope/pkg"},
+		{"node_modules/foo/node_modules/bar", "bar"},
+		{"node_modules/foo/node_modules/@scope/baz", "@scope/baz"},
+		{"something/else", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			got := extractNpmName(tt.key)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// extractNpmDeps
+// ---------------------------------------------------------------------------
+
+func TestExtractNpmDeps(t *testing.T) {
+	dir := t.TempDir()
+
+	lockfile := `{
+  "lockfileVersion": 3,
+  "packages": {
+    "": { "dependencies": {"axios": "^1.14.0"} },
+    "node_modules/axios": {
+      "version": "1.14.1",
+      "dependencies": { "follow-redirects": "^1.15.0", "form-data": "^4.0.0" }
+    },
+    "node_modules/follow-redirects": { "version": "1.15.6" },
+    "node_modules/form-data": {
+      "version": "4.0.0",
+      "dependencies": { "asynckit": "^0.4.0" }
+    },
+    "node_modules/asynckit": { "version": "0.4.0" }
+  }
+}`
+	writeFile(t, dir, "package-lock.json", []byte(lockfile))
+
+	deps, pkgs := extractNpmDeps(dir)
+
+	// Should have packages for: root, axios, follow-redirects, form-data, asynckit
+	assert.Len(t, pkgs, 5, "should create 5 package entries (root + 4 deps)")
+
+	// Expected edges:
+	// root → axios (from root "")
+	// axios → follow-redirects
+	// axios → form-data
+	// form-data → asynckit
+	assert.Len(t, deps, 4, "should have 4 dependency edges")
+
+	// Build a set of edges for easy lookup.
+	type edge struct{ parent, child string }
+	edgeSet := map[edge]string{}
+	for _, d := range deps {
+		edgeSet[edge{d.ParentProjectID, d.ChildProjectID}] = d.ChildConstraint
+	}
+
+	assert.Contains(t, edgeSet, edge{"npm/__root__", "npm/axios"})
+	assert.Contains(t, edgeSet, edge{"npm/axios", "npm/follow-redirects"})
+	assert.Contains(t, edgeSet, edge{"npm/axios", "npm/form-data"})
+	assert.Contains(t, edgeSet, edge{"npm/form-data", "npm/asynckit"})
+
+	// Verify constraints are preserved.
+	assert.Equal(t, "^1.14.0", edgeSet[edge{"npm/__root__", "npm/axios"}])
+	assert.Equal(t, "^0.4.0", edgeSet[edge{"npm/form-data", "npm/asynckit"}])
+}
+
+func TestExtractNpmDeps_NoLockfile(t *testing.T) {
+	dir := t.TempDir()
+	deps, pkgs := extractNpmDeps(dir)
+	assert.Nil(t, deps)
+	assert.Nil(t, pkgs)
+}
+
+// ---------------------------------------------------------------------------
+// extractCargoDeps
+// ---------------------------------------------------------------------------
+
+func TestExtractCargoDeps(t *testing.T) {
+	dir := t.TempDir()
+
+	cargoLock := `[[package]]
+name = "my-crate"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tokio 1.37.0",
+]
+
+[[package]]
+name = "serde"
+version = "1.0.200"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.200"
+
+[[package]]
+name = "tokio"
+version = "1.37.0"
+`
+	writeFile(t, dir, "Cargo.lock", []byte(cargoLock))
+
+	deps, pkgs := extractCargoDeps(dir)
+
+	// 4 packages: my-crate, serde, serde_derive, tokio
+	assert.Len(t, pkgs, 4, "should create 4 package entries")
+
+	// Expected edges:
+	// my-crate → serde (no version constraint)
+	// my-crate → tokio (version 1.37.0)
+	// serde → serde_derive (no version constraint)
+	assert.Len(t, deps, 3, "should have 3 dependency edges")
+
+	type edge struct{ parent, child string }
+	edgeSet := map[edge]string{}
+	for _, d := range deps {
+		edgeSet[edge{d.ParentProjectID, d.ChildProjectID}] = d.ChildConstraint
+	}
+
+	assert.Contains(t, edgeSet, edge{"rust/my-crate", "rust/serde"})
+	assert.Contains(t, edgeSet, edge{"rust/my-crate", "rust/tokio"})
+	assert.Contains(t, edgeSet, edge{"rust/serde", "rust/serde_derive"})
+
+	// Verify version constraint is captured for tokio.
+	assert.Equal(t, "1.37.0", edgeSet[edge{"rust/my-crate", "rust/tokio"}])
+	// serde has no version constraint.
+	assert.Equal(t, "", edgeSet[edge{"rust/my-crate", "rust/serde"}])
+}
+
+func TestExtractCargoDeps_NoLockfile(t *testing.T) {
+	dir := t.TempDir()
+	deps, pkgs := extractCargoDeps(dir)
+	assert.Nil(t, deps)
+	assert.Nil(t, pkgs)
+}
+
+// ---------------------------------------------------------------------------
+// RunIndex with dependency edges (npm lockfile)
+// ---------------------------------------------------------------------------
+
+func TestRunIndexWithNpmDeps(t *testing.T) {
+	root := t.TempDir()
+
+	// Create package.json
+	writeFile(t, root, "package.json",
+		makePackageJSON("my-project", map[string]string{"axios": "^1.14.0"}))
+
+	// Create package-lock.json with transitive deps
+	lockfile := `{
+  "lockfileVersion": 3,
+  "packages": {
+    "": { "dependencies": {"axios": "^1.14.0"} },
+    "node_modules/axios": {
+      "version": "1.14.1",
+      "dependencies": { "follow-redirects": "^1.15.0", "form-data": "^4.0.0" }
+    },
+    "node_modules/follow-redirects": { "version": "1.15.6" },
+    "node_modules/form-data": {
+      "version": "4.0.0",
+      "dependencies": { "asynckit": "^0.4.0" }
+    },
+    "node_modules/asynckit": { "version": "0.4.0" }
+  }
+}`
+	writeFile(t, root, "package-lock.json", []byte(lockfile))
+
+	dbPath := filepath.Join(t.TempDir(), "test-deps.db")
+	opts := IndexOptions{
+		Scope:  "local",
+		DBPath: dbPath,
+	}
+
+	var buf bytes.Buffer
+	result, err := RunIndex(context.Background(), root, opts, &buf)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Should have extracted dependency edges.
+	assert.Equal(t, 4, result.DepsTotal, "should have 4 dependency edges")
+
+	// Output should mention dep edges.
+	output := buf.String()
+	assert.Contains(t, output, "dep edges")
+
+	// Verify edges in the database.
+	db, err := cache.NewCacheDB(dbPath)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	// Check root → axios edge.
+	rootDeps, err := db.GetVersionDependencies("npm/__root__", "npm/__root__")
+	require.NoError(t, err)
+	assert.Len(t, rootDeps, 1, "root should have 1 dependency (axios)")
+	if len(rootDeps) > 0 {
+		assert.Equal(t, "npm/axios", rootDeps[0].ChildProjectID)
+		assert.Equal(t, "^1.14.0", rootDeps[0].ChildVersionConstraint)
+		assert.Equal(t, "lockfile", rootDeps[0].DepScope)
+	}
+
+	// Check axios → follow-redirects, form-data edges.
+	axiosDeps, err := db.GetVersionDependencies("npm/axios", "npm/axios@1.14.1")
+	require.NoError(t, err)
+	assert.Len(t, axiosDeps, 2, "axios should have 2 dependencies")
+
+	childIDs := map[string]bool{}
+	for _, d := range axiosDeps {
+		childIDs[d.ChildProjectID] = true
+	}
+	assert.True(t, childIDs["npm/follow-redirects"])
+	assert.True(t, childIDs["npm/form-data"])
+
+	// Check form-data → asynckit edge.
+	formDataDeps, err := db.GetVersionDependencies("npm/form-data", "npm/form-data@4.0.0")
+	require.NoError(t, err)
+	assert.Len(t, formDataDeps, 1)
+	if len(formDataDeps) > 0 {
+		assert.Equal(t, "npm/asynckit", formDataDeps[0].ChildProjectID)
+	}
+}
+
 func TestRunIndexForce(t *testing.T) {
 	root := buildFixtureTree(t)
 

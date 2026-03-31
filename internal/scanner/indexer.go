@@ -34,6 +34,7 @@ type IndexResult struct {
 	ManifestsSkipped int
 	PackagesTotal    int
 	PackagesNew      int
+	DepsTotal        int
 	Errors           int
 }
 
@@ -45,6 +46,15 @@ type indexedPackage struct {
 	Name       string
 	Constraint string
 	DepScope   string
+}
+
+// indexedDep represents a dependency edge between two packages, extracted
+// from a lockfile's dependency structure.
+type indexedDep struct {
+	ParentProjectID  string
+	ParentVersionKey string
+	ChildProjectID   string
+	ChildConstraint  string
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +256,227 @@ func companionsFor(eco, primaryKey string) []string {
 }
 
 // ---------------------------------------------------------------------------
+// Lockfile dependency-edge extraction
+// ---------------------------------------------------------------------------
+
+// extractDependencyEdges parses a lockfile's dependency structure and returns
+// edges (parent→child relationships) for storage in version_dependencies.
+// It also returns any packages that must exist in project_versions as
+// prerequisites for the foreign-key constraint on version_dependencies.
+func extractDependencyEdges(absPath, eco string) ([]indexedDep, []indexedPackage) {
+	dir := filepath.Dir(absPath)
+	switch eco {
+	case "npm":
+		return extractNpmDeps(dir)
+	case "rust":
+		return extractCargoDeps(dir)
+	default:
+		return nil, nil
+	}
+}
+
+// extractNpmDeps parses package-lock.json (v2/v3 format with "packages" map)
+// and returns dependency edges between lockfile entries.
+func extractNpmDeps(dir string) ([]indexedDep, []indexedPackage) {
+	lockData, err := os.ReadFile(filepath.Join(dir, "package-lock.json"))
+	if err != nil {
+		return nil, nil
+	}
+
+	var lock struct {
+		Packages map[string]struct {
+			Version         string            `json:"version"`
+			Dependencies    map[string]string `json:"dependencies"`
+			DevDependencies map[string]string `json:"devDependencies"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(lockData, &lock); err != nil {
+		return nil, nil
+	}
+	if len(lock.Packages) == 0 {
+		return nil, nil
+	}
+
+	// Build name→version lookup from all entries in the packages map.
+	versions := map[string]string{}
+	for key, entry := range lock.Packages {
+		name := extractNpmName(key)
+		if name != "" {
+			versions[name] = entry.Version
+		}
+	}
+
+	var deps []indexedDep
+	var pkgs []indexedPackage
+
+	for key, entry := range lock.Packages {
+		parentName := extractNpmName(key)
+		isRoot := parentName == ""
+		if isRoot {
+			parentName = "__root__"
+		}
+
+		parentVersion := entry.Version
+		parentProjectID := "npm/" + parentName
+		parentVersionKey := parentProjectID
+		if parentVersion != "" {
+			parentVersionKey += "@" + parentVersion
+		}
+
+		// Ensure the parent entry exists in project_versions.
+		pkgs = append(pkgs, indexedPackage{
+			ProjectID:  parentProjectID,
+			VersionKey: parentVersionKey,
+			Name:       parentName,
+			Constraint: parentVersion,
+			DepScope:   "lockfile",
+		})
+
+		// Collect edges from both dependencies and devDependencies.
+		addEdges := func(depMap map[string]string) {
+			for childName, constraint := range depMap {
+				deps = append(deps, indexedDep{
+					ParentProjectID:  parentProjectID,
+					ParentVersionKey: parentVersionKey,
+					ChildProjectID:   "npm/" + childName,
+					ChildConstraint:  constraint,
+				})
+			}
+		}
+		addEdges(entry.Dependencies)
+		addEdges(entry.DevDependencies)
+	}
+
+	return deps, pkgs
+}
+
+// extractNpmName extracts the package name from a node_modules path key.
+// For example "node_modules/axios" → "axios",
+// "node_modules/@scope/pkg" → "@scope/pkg",
+// "node_modules/foo/node_modules/bar" → "bar".
+// The root entry "" returns "".
+func extractNpmName(key string) string {
+	const prefix = "node_modules/"
+	if !strings.HasPrefix(key, prefix) {
+		return ""
+	}
+	name := key[len(prefix):]
+	// Handle nested: node_modules/foo/node_modules/bar → bar
+	if i := strings.LastIndex(name, prefix); i >= 0 {
+		name = name[i+len(prefix):]
+	}
+	return name
+}
+
+// extractCargoDeps parses Cargo.lock and returns dependency edges.
+// Cargo.lock uses [[package]] blocks with name, version, and dependencies.
+func extractCargoDeps(dir string) ([]indexedDep, []indexedPackage) {
+	lockData, err := os.ReadFile(filepath.Join(dir, "Cargo.lock"))
+	if err != nil {
+		return nil, nil
+	}
+
+	type cargoPackage struct {
+		Name         string
+		Version      string
+		Dependencies []string
+	}
+
+	var packages []cargoPackage
+	var current *cargoPackage
+	inDeps := false
+
+	lines := strings.Split(string(lockData), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed == "[[package]]" {
+			if current != nil {
+				packages = append(packages, *current)
+			}
+			current = &cargoPackage{}
+			inDeps = false
+			continue
+		}
+
+		if current == nil {
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "name = ") {
+			current.Name = unquoteTOML(trimmed[len("name = "):])
+			inDeps = false
+		} else if strings.HasPrefix(trimmed, "version = ") {
+			current.Version = unquoteTOML(trimmed[len("version = "):])
+			inDeps = false
+		} else if trimmed == "dependencies = [" {
+			inDeps = true
+		} else if inDeps && trimmed == "]" {
+			inDeps = false
+		} else if inDeps && strings.HasPrefix(trimmed, "\"") {
+			dep := unquoteTOML(trimmed)
+			// Remove trailing comma if present.
+			dep = strings.TrimSuffix(dep, ",")
+			dep = strings.TrimSpace(dep)
+			if dep != "" {
+				current.Dependencies = append(current.Dependencies, dep)
+			}
+		}
+	}
+	if current != nil {
+		packages = append(packages, *current)
+	}
+
+	var deps []indexedDep
+	var pkgs []indexedPackage
+
+	for _, pkg := range packages {
+		parentProjectID := "rust/" + pkg.Name
+		parentVersionKey := parentProjectID + "@" + pkg.Version
+
+		pkgs = append(pkgs, indexedPackage{
+			ProjectID:  parentProjectID,
+			VersionKey: parentVersionKey,
+			Name:       pkg.Name,
+			Constraint: pkg.Version,
+			DepScope:   "lockfile",
+		})
+
+		for _, dep := range pkg.Dependencies {
+			// Dependency format is either "name" or "name version"
+			parts := strings.SplitN(dep, " ", 2)
+			childName := parts[0]
+			childConstraint := ""
+			if len(parts) > 1 {
+				childConstraint = parts[1]
+			}
+
+			deps = append(deps, indexedDep{
+				ParentProjectID:  parentProjectID,
+				ParentVersionKey: parentVersionKey,
+				ChildProjectID:   "rust/" + childName,
+				ChildConstraint:  childConstraint,
+			})
+		}
+	}
+
+	return deps, pkgs
+}
+
+// unquoteTOML removes surrounding double quotes from a TOML value string.
+func unquoteTOML(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		return s[1 : len(s)-1]
+	}
+	// Handle trailing comma after closing quote: "value",
+	if len(s) >= 3 && s[0] == '"' && s[len(s)-1] == ',' && s[len(s)-2] == '"' {
+		return s[1 : len(s)-2]
+	}
+	return s
+}
+
+// ---------------------------------------------------------------------------
 // Core indexer
 // ---------------------------------------------------------------------------
 
@@ -403,9 +634,43 @@ func RunIndex(ctx context.Context, root string, opts IndexOptions, w io.Writer) 
 			}
 		}
 
+		// Extract dependency edges from lockfiles.
+		edges, edgePkgs := extractDependencyEdges(path, eco)
+		// Ensure prerequisite projects/versions exist for the dep edges.
+		for _, ep := range edgePkgs {
+			_ = db.UpsertProject(&cache.Project{
+				ID:        ep.ProjectID,
+				Ecosystem: eco,
+				Name:      ep.Name,
+			})
+			_ = db.UpsertVersion(&cache.ProjectVersion{
+				ProjectID:  ep.ProjectID,
+				VersionKey: ep.VersionKey,
+			})
+		}
+		edgeCount := 0
+		for _, edge := range edges {
+			if err := db.AddVersionDependency(&cache.VersionDependency{
+				ParentProjectID:        edge.ParentProjectID,
+				ParentVersionKey:       edge.ParentVersionKey,
+				ChildProjectID:         edge.ChildProjectID,
+				ChildVersionConstraint: edge.ChildConstraint,
+				DepScope:               "lockfile",
+			}); err != nil {
+				res.Errors++
+				continue
+			}
+			edgeCount++
+		}
+		res.DepsTotal += edgeCount
+
 		res.ManifestsUpdated++
 		ecoTag := fmt.Sprintf("%-8s", eco)
-		_, _ = fmt.Fprintf(w, "  [%s] %-50s %d packages (%d new)\n", ecoTag, relPath, len(pkgs), newCount)
+		depInfo := ""
+		if edgeCount > 0 {
+			depInfo = fmt.Sprintf(", %d dep edges", edgeCount)
+		}
+		_, _ = fmt.Fprintf(w, "  [%s] %-50s %d packages (%d new%s)\n", ecoTag, relPath, len(pkgs), newCount, depInfo)
 
 		return nil
 	})
@@ -431,8 +696,8 @@ func RunIndex(ctx context.Context, root string, opts IndexOptions, w io.Writer) 
 		return nil, fmt.Errorf("finish index run: %w", err)
 	}
 
-	_, _ = fmt.Fprintf(w, "\nDone: %d manifests scanned, %d packages indexed (%d new), %d errors\n",
-		res.ManifestsFound, res.PackagesTotal, res.PackagesNew, res.Errors)
+	_, _ = fmt.Fprintf(w, "\nDone: %d manifests scanned, %d packages indexed (%d new), %d dep edges, %d errors\n",
+		res.ManifestsFound, res.PackagesTotal, res.PackagesNew, res.DepsTotal, res.Errors)
 	_, _ = fmt.Fprintf(w, "Index: %s\n", opts.DBPath)
 
 	return res, nil
