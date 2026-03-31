@@ -132,8 +132,13 @@ func semverSatisfies(constraint, version string) bool {
 			upper := semversion{major: cv.major + 1, minor: 0, patch: 0}
 			return ver.lt(upper)
 		}
-		// ^0.MINOR.PATCH → >=0.MINOR.PATCH, <0.(MINOR+1).0
-		upper := semversion{major: 0, minor: cv.minor + 1, patch: 0}
+		if cv.minor > 0 {
+			// ^0.MINOR.PATCH → >=0.MINOR.PATCH, <0.(MINOR+1).0
+			upper := semversion{major: 0, minor: cv.minor + 1, patch: 0}
+			return ver.lt(upper)
+		}
+		// ^0.0.PATCH → >=0.0.PATCH, <0.0.(PATCH+1)
+		upper := semversion{major: 0, minor: 0, patch: cv.patch + 1}
 		return ver.lt(upper)
 	}
 

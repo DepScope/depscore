@@ -16,6 +16,7 @@ func TestParseSemver(t *testing.T) {
 		{"0.30.4", 0, 30, 4, true},
 		{"4.18.2", 4, 18, 2, true},
 		{"1.0.0-beta.1", 1, 0, 0, true},
+		{"v1.14.1", 1, 14, 1, true},  // v prefix
 		{"not-a-version", 0, 0, 0, false},
 		{"", 0, 0, 0, false},
 	}
@@ -64,6 +65,13 @@ func TestSemverSatisfies(t *testing.T) {
 		{">=0.30.0,<0.31.0", "0.31.0", false},
 		{"*", "1.14.1", true},
 		{"latest", "1.14.1", true},
+		// Caret ^0.0.x — locks to exact patch
+		{"^0.0.3", "0.0.3", true},
+		{"^0.0.3", "0.0.4", false},
+		{"^0.0.3", "0.1.0", false},
+		// = prefix
+		{"=1.14.1", "1.14.1", true},
+		{"=1.14.1", "1.14.2", false},
 	}
 	for _, tt := range tests {
 		got := semverSatisfies(tt.constraint, tt.version)
