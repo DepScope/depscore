@@ -7,8 +7,10 @@ import (
 	"sort"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/depscope/depscope/internal/cache"
 	"github.com/depscope/depscope/internal/scanner"
+	"github.com/depscope/depscope/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -22,9 +24,12 @@ func init() {
 	indexListCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite index database")
 	indexListCmd.Flags().String("ecosystem", "", "filter by ecosystem (npm, go, python, rust, php)")
 
+	indexExploreCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite index database")
+
 	indexCmd.AddCommand(indexStatusCmd)
 	indexCmd.AddCommand(indexSearchCmd)
 	indexCmd.AddCommand(indexListCmd)
+	indexCmd.AddCommand(indexExploreCmd)
 	rootCmd.AddCommand(indexCmd)
 }
 
@@ -339,5 +344,35 @@ func runIndexList(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\n%d manifest(s)\n", count)
+	return nil
+}
+
+var indexExploreCmd = &cobra.Command{
+	Use:          "explore",
+	Short:        "Interactive index search TUI",
+	SilenceUsage: true,
+	RunE:         runIndexExplore,
+}
+
+func runIndexExplore(cmd *cobra.Command, args []string) error {
+	dbPath, _ := cmd.Flags().GetString("db")
+
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return fmt.Errorf("no index database at %s — run 'depscope index' first", dbPath)
+	}
+
+	db, err := cache.NewCacheDB(dbPath)
+	if err != nil {
+		return fmt.Errorf("open index db: %w", err)
+	}
+	// Don't defer close — the TUI needs the DB alive during execution.
+
+	model := tui.NewIndexSearchModel(db)
+	p := tea.NewProgram(model, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		_ = db.Close()
+		return fmt.Errorf("TUI error: %w", err)
+	}
+	_ = db.Close()
 	return nil
 }
