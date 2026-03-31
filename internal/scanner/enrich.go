@@ -147,7 +147,7 @@ func RunEnrich(ctx context.Context, opts EnrichOptions, w io.Writer) (*EnrichRes
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			meta := enrichPackage(ctx, p.projectID, p.versionKey, fetchers, vcsClient, osvClient, &repoCacheMu, repoCache)
+			meta := enrichPackage(ctx, p.projectID, p.versionKey, db, fetchers, vcsClient, osvClient, &repoCacheMu, repoCache)
 
 			// Store metadata.
 			metaJSON, _ := json.Marshal(meta)
@@ -188,6 +188,7 @@ func RunEnrich(ctx context.Context, opts EnrichOptions, w io.Writer) (*EnrichRes
 func enrichPackage(
 	ctx context.Context,
 	projectID, versionKey string,
+	cacheDB *cache.CacheDB,
 	fetchers registry.FetchersByEcosystem,
 	vcsClient vcs.Client,
 	osvClient *vuln.OSVClient,
@@ -259,19 +260,40 @@ func enrichPackage(
 		}
 	}
 
-	// CVE lookup via OSV.
+	// CVE lookup via OSV — check cache first.
 	if osvClient != nil && version != "" {
 		osvEco := registryEco
-		findings, err := osvClient.Query(osvEco, name, version)
-		if err == nil {
-			meta.CVECount = len(findings)
-			for _, f := range findings {
-				meta.CVEs = append(meta.CVEs, EnrichCVE{
-					ID:       f.ID,
-					Severity: string(f.Severity),
-					Summary:  f.Summary,
-				})
+		var findings []vuln.Finding
+
+		// 1. Try CVE cache.
+		if cacheDB != nil {
+			cached, err := cacheDB.GetCVECache(osvEco, name, version)
+			if err == nil && cached != "" {
+				_ = json.Unmarshal([]byte(cached), &findings)
 			}
+		}
+
+		// 2. Cache miss — query OSV.
+		if findings == nil {
+			queried, err := osvClient.Query(osvEco, name, version)
+			if err == nil {
+				findings = queried
+				// 3. Store in cache.
+				if cacheDB != nil {
+					if raw, err := json.Marshal(findings); err == nil {
+						_ = cacheDB.SetCVECache(osvEco, name, version, string(raw))
+					}
+				}
+			}
+		}
+
+		meta.CVECount = len(findings)
+		for _, f := range findings {
+			meta.CVEs = append(meta.CVEs, EnrichCVE{
+				ID:       f.ID,
+				Severity: string(f.Severity),
+				Summary:  f.Summary,
+			})
 		}
 	}
 
