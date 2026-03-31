@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,10 +27,15 @@ func init() {
 
 	indexExploreCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite index database")
 
+	indexEnrichCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite index database")
+	indexEnrichCmd.Flags().Bool("force", false, "re-enrich packages that already have scores")
+	indexEnrichCmd.Flags().Bool("no-cve", false, "skip CVE lookups (faster, reputation-only)")
+
 	indexCmd.AddCommand(indexStatusCmd)
 	indexCmd.AddCommand(indexSearchCmd)
 	indexCmd.AddCommand(indexListCmd)
 	indexCmd.AddCommand(indexExploreCmd)
+	indexCmd.AddCommand(indexEnrichCmd)
 	rootCmd.AddCommand(indexCmd)
 }
 
@@ -216,6 +222,38 @@ func runIndexStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Enrichment stats (across all roots).
+	var enriched int
+	var avgScore float64
+	var withCVEs int
+	enrichRows, err := db.DB().Query(
+		`SELECT COUNT(*), AVG(json_extract(metadata, '$.score')),
+		        SUM(CASE WHEN json_extract(metadata, '$.cve_count') > 0 THEN 1 ELSE 0 END)
+		 FROM project_versions WHERE metadata != '' AND metadata != '{}'`)
+	if err == nil {
+		defer func() { _ = enrichRows.Close() }()
+		if enrichRows.Next() {
+			var avgScoreNull sql.NullFloat64
+			var withCVEsNull sql.NullInt64
+			_ = enrichRows.Scan(&enriched, &avgScoreNull, &withCVEsNull)
+			if avgScoreNull.Valid {
+				avgScore = avgScoreNull.Float64
+			}
+			if withCVEsNull.Valid {
+				withCVEs = int(withCVEsNull.Int64)
+			}
+		}
+	}
+	fmt.Println()
+	if enriched > 0 {
+		fmt.Printf("  Enriched:    %d packages (avg score: %.0f)\n", enriched, avgScore)
+		if withCVEs > 0 {
+			fmt.Printf("  With CVEs:   %d packages\n", withCVEs)
+		}
+	} else {
+		fmt.Printf("  Enrichment:  not yet run (use 'depscope index enrich')\n")
+	}
+
 	return nil
 }
 
@@ -344,6 +382,52 @@ func runIndexList(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\n%d manifest(s)\n", count)
+	return nil
+}
+
+var indexEnrichCmd = &cobra.Command{
+	Use:   "enrich",
+	Short: "Enrich indexed packages with reputation scores and CVE data",
+	Long: `Query package registries (npm, PyPI, crates.io, Go proxy, Packagist) and
+OSV.dev to add reputation scores and CVE data to every indexed package.
+
+This is resumable — packages already enriched are skipped unless --force is set.
+Set GITHUB_TOKEN for better VCS scoring (higher rate limits).
+
+Examples:
+  depscope index enrich              # enrich all indexed packages
+  depscope index enrich --force      # re-enrich everything
+  depscope index enrich --no-cve     # reputation only, skip CVE lookups`,
+	SilenceUsage: true,
+	RunE:         runIndexEnrich,
+}
+
+func runIndexEnrich(cmd *cobra.Command, args []string) error {
+	dbPath, _ := cmd.Flags().GetString("db")
+	force, _ := cmd.Flags().GetBool("force")
+	noCVE, _ := cmd.Flags().GetBool("no-cve")
+
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return fmt.Errorf("no index database at %s — run 'depscope index' first", dbPath)
+	}
+
+	ghToken := os.Getenv("GITHUB_TOKEN")
+	if ghToken == "" {
+		fmt.Fprintln(os.Stderr, "Tip: set GITHUB_TOKEN for better VCS scoring and higher rate limits")
+	}
+
+	result, err := scanner.RunEnrich(cmd.Context(), scanner.EnrichOptions{
+		DBPath: dbPath,
+		Force:  force,
+		NoCVE:  noCVE,
+	}, os.Stdout)
+	if err != nil {
+		return err
+	}
+
+	if result.CVEsFound > 0 {
+		fmt.Fprintf(os.Stderr, "\nWarning: %d CVE(s) found across indexed packages\n", result.CVEsFound)
+	}
 	return nil
 }
 
