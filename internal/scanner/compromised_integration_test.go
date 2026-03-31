@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +89,60 @@ func TestScanCompromisedIntegration(t *testing.T) {
 	require.NoError(t, err)
 	assert.Greater(t, status.Projects, 3)
 	assert.Greater(t, status.Dependencies, 3)
+}
+
+func TestScanCompromisedFromIndex(t *testing.T) {
+	root := t.TempDir()
+
+	// Create npm project with node_modules.
+	mkManifest(t, root, "webapp", `{
+		"name": "webapp",
+		"dependencies": { "axios": "^1.14.0", "lodash": "^4.17.21" }
+	}`, `{
+		"lockfileVersion": 3,
+		"packages": {
+			"node_modules/axios": { "version": "1.14.1" },
+			"node_modules/lodash": { "version": "4.17.21" }
+		}
+	}`)
+
+	// Install axios in node_modules.
+	nmDir := filepath.Join(root, "webapp", "node_modules", "axios")
+	require.NoError(t, os.MkdirAll(nmDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(nmDir, "package.json"), []byte(`{
+		"name": "axios", "version": "1.14.1"
+	}`), 0644))
+
+	// Go project (should NOT match npm axios).
+	goDir := filepath.Join(root, "svc")
+	require.NoError(t, os.MkdirAll(goDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(goDir, "go.mod"), []byte("module example.com/svc\n\ngo 1.21\n\nrequire (\n\tgolang.org/x/sync v0.5.0\n)\n"), 0644))
+
+	// Step 1: Build the index.
+	dbPath := filepath.Join(t.TempDir(), "fromidx.db")
+	_, err := RunIndex(context.Background(), root, IndexOptions{
+		Scope: "local", DBPath: dbPath,
+	}, io.Discard)
+	require.NoError(t, err)
+
+	// Step 2: Query from index for compromised axios.
+	targets := []CompromisedTarget{
+		{Name: "axios", VersionOrRange: "1.14.1"},
+	}
+
+	var buf strings.Builder
+	findings, err := ScanCompromisedFromIndex(context.Background(), targets, dbPath, &buf)
+	require.NoError(t, err)
+
+	// Should find axios@1.14.1 in at least 1 manifest (webapp/package.json or node_modules).
+	assert.GreaterOrEqual(t, len(findings), 1)
+
+	output := buf.String()
+	assert.Contains(t, output, "axios@1.14.1")
+	assert.Contains(t, output, "DIRECT")
+
+	// Go packages should NOT appear.
+	assert.NotContains(t, output, "golang")
 }
 
 func mkManifest(t *testing.T, root, subdir, pkgJSON, lockJSON string) {

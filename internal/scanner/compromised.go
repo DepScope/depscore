@@ -178,6 +178,90 @@ func ScanCompromised(ctx context.Context, root string, targets []CompromisedTarg
 	return allFindings, nil
 }
 
+// ScanCompromisedFromIndex queries the SQLite index for compromised packages
+// instead of walking the filesystem. Much faster — requires a prior `depscope index` run.
+func ScanCompromisedFromIndex(ctx context.Context, targets []CompromisedTarget, dbPath string, w io.Writer) ([]Finding, error) {
+	if dbPath == "" {
+		return nil, fmt.Errorf("--db is required with --from-index")
+	}
+
+	cacheDB, err := cache.NewCacheDB(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open cache db: %w", err)
+	}
+	defer func() { _ = cacheDB.Close() }()
+
+	// Build target lookup.
+	targetMap := make(map[string][]string)
+	for _, t := range targets {
+		targetMap[t.Name] = append(targetMap[t.Name], t.VersionOrRange)
+	}
+
+	scanID := fmt.Sprintf("compromised-idx-%d", time.Now().UnixNano())
+	var allFindings []Finding
+
+	for name, ranges := range targetMap {
+		// Determine ecosystem prefix — for now support npm, python, go, rust, php.
+		for _, eco := range []string{"npm", "python", "go", "rust", "php"} {
+			projectID := eco + "/" + name
+
+			results, err := cacheDB.SearchIndexByPackageName(projectID)
+			if err != nil {
+				return nil, fmt.Errorf("search index for %s: %w", projectID, err)
+			}
+
+			for _, r := range results {
+				for _, rng := range ranges {
+					if !semverSatisfies(rng, r.Version) {
+						continue
+					}
+
+					relation := "direct"
+					if r.DepScope == "transitive" || r.DepScope == "installed" {
+						relation = "indirect"
+					}
+
+					f := Finding{
+						ManifestPath: r.ManifestRelPath,
+						PackageName:  name,
+						Version:      r.Version,
+						Constraint:   r.Constraint,
+						Relation:     relation,
+					}
+
+					tag := "DIRECT  "
+					if relation == "indirect" {
+						tag = "INDIRECT"
+					}
+					detail := ""
+					if r.Constraint != "" {
+						detail = fmt.Sprintf("  (constraint: %s)", r.Constraint)
+					}
+					_, _ = fmt.Fprintf(w, "%s  %s  %s@%s%s\n", tag, f.ManifestPath, f.PackageName, f.Version, detail)
+
+					// Log to DB.
+					_ = cacheDB.AddCompromisedFinding(&cache.CompromisedFinding{
+						ScanID:       scanID,
+						ManifestPath: f.ManifestPath,
+						PackageName:  f.PackageName,
+						Version:      f.Version,
+						Constraint:   f.Constraint,
+						Relation:     f.Relation,
+					})
+
+					allFindings = append(allFindings, f)
+					break // one match per range is enough
+				}
+			}
+		}
+	}
+
+	cFindings, _ := cacheDB.GetCompromisedFindings(scanID)
+	_, _ = fmt.Fprintf(w, "\nCompromised findings: %d (from index, scan_id: %s)\n", len(cFindings), scanID)
+
+	return allFindings, nil
+}
+
 // manifestInfo holds parsed data for one package.json + its lockfile.
 type manifestInfo struct {
 	relDir      string            // e.g., "apps/web"

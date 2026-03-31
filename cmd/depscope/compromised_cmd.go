@@ -14,6 +14,7 @@ func init() {
 	compromisedCmd.Flags().String("packages", "", `comma-separated compromised packages: "axios@1.14.1,axios@0.30.4"`)
 	compromisedCmd.Flags().String("file", "", "path to file with compromised packages (one per line)")
 	compromisedCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite database for logging")
+	compromisedCmd.Flags().Bool("from-index", false, "query the SQLite index instead of walking the filesystem (requires prior 'depscope index' run)")
 	rootCmd.AddCommand(compromisedCmd)
 }
 
@@ -30,6 +31,11 @@ Supply compromised packages inline or via file:
 
   depscope compromised . --packages "axios@1.14.1,axios@0.30.4"
   depscope compromised /src --file compromised.txt
+
+Use --from-index to query a pre-built index (much faster, all ecosystems):
+
+  depscope index ~                                           # build index first
+  depscope compromised --from-index --packages "axios@1.14.1"  # instant query
 
 The file format is one entry per line (# for comments):
 
@@ -80,10 +86,17 @@ func runCompromised(cmd *cobra.Command, args []string) error {
 	}
 
 	dbPath, _ := cmd.Flags().GetString("db")
+	fromIndex, _ := cmd.Flags().GetBool("from-index")
 
-	fmt.Fprintf(os.Stderr, "Scanning %s for %d compromised package(s)...\n\n", absRoot, len(targets))
+	var findings []scanner.Finding
 
-	findings, err := scanner.ScanCompromised(cmd.Context(), absRoot, targets, dbPath, os.Stdout)
+	if fromIndex {
+		fmt.Fprintf(os.Stderr, "Searching index for %d compromised package(s)...\n\n", len(targets))
+		findings, err = scanner.ScanCompromisedFromIndex(cmd.Context(), targets, dbPath, os.Stdout)
+	} else {
+		fmt.Fprintf(os.Stderr, "Scanning %s for %d compromised package(s)...\n\n", absRoot, len(targets))
+		findings, err = scanner.ScanCompromised(cmd.Context(), absRoot, targets, dbPath, os.Stdout)
+	}
 	if err != nil {
 		return err
 	}
