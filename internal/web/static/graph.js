@@ -469,29 +469,55 @@
   function highlightConnected(d) {
     if (!window._graphRefs) return;
     var refs = window._graphRefs;
-    var connectedIds = new Set();
-    connectedIds.add(d.id);
 
+    // Build full subtree: follow edges downstream (source→target) from clicked node,
+    // and also include immediate upstream (1-hop parents).
+    var adjTo = {};   // forward: source → [target]
+    var adjFrom = {}; // reverse: target → [source]
     refs.data.links.forEach(function (l) {
       var srcId = typeof l.source === 'object' ? l.source.id : l.source;
       var tgtId = typeof l.target === 'object' ? l.target.id : l.target;
-      if (srcId === d.id) connectedIds.add(tgtId);
-      if (tgtId === d.id) connectedIds.add(srcId);
+      if (!adjTo[srcId]) adjTo[srcId] = [];
+      adjTo[srcId].push(tgtId);
+      if (!adjFrom[tgtId]) adjFrom[tgtId] = [];
+      adjFrom[tgtId].push(srcId);
+    });
+
+    var connectedIds = new Set();
+    connectedIds.add(d.id);
+
+    // BFS downstream (all transitive children).
+    var queue = [d.id];
+    while (queue.length > 0) {
+      var cur = queue.shift();
+      (adjTo[cur] || []).forEach(function (child) {
+        if (!connectedIds.has(child)) {
+          connectedIds.add(child);
+          queue.push(child);
+        }
+      });
+    }
+
+    // Also include immediate upstream parents (1-hop).
+    (adjFrom[d.id] || []).forEach(function (parent) {
+      connectedIds.add(parent);
+    });
+
+    // Build set of edges within the connected subgraph.
+    var connectedEdges = new Set();
+    refs.data.links.forEach(function (l) {
+      var srcId = typeof l.source === 'object' ? l.source.id : l.source;
+      var tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+      if (connectedIds.has(srcId) && connectedIds.has(tgtId)) {
+        connectedEdges.add(l);
+      }
     });
 
     refs.node.classed('dimmed', function (n) { return !connectedIds.has(n.id); });
     refs.node.classed('highlighted', function (n) { return n.id === d.id; });
 
-    refs.link.classed('dimmed', function (l) {
-      var srcId = typeof l.source === 'object' ? l.source.id : l.source;
-      var tgtId = typeof l.target === 'object' ? l.target.id : l.target;
-      return srcId !== d.id && tgtId !== d.id;
-    });
-    refs.link.classed('highlighted', function (l) {
-      var srcId = typeof l.source === 'object' ? l.source.id : l.source;
-      var tgtId = typeof l.target === 'object' ? l.target.id : l.target;
-      return srcId === d.id || tgtId === d.id;
-    });
+    refs.link.classed('dimmed', function (l) { return !connectedEdges.has(l); });
+    refs.link.classed('highlighted', function (l) { return connectedEdges.has(l); });
   }
 
   function clearHighlight() {
@@ -511,14 +537,32 @@
     var width = container.clientWidth;
     var height = container.clientHeight;
 
-    // Find 1-hop neighbor bounding box
-    var connectedIds = new Set();
-    connectedIds.add(d.id);
+    // Build full subtree + immediate parents (same as highlightConnected).
+    var adjTo = {};
+    var adjFrom = {};
     refs.data.links.forEach(function (l) {
       var srcId = typeof l.source === 'object' ? l.source.id : l.source;
       var tgtId = typeof l.target === 'object' ? l.target.id : l.target;
-      if (srcId === d.id) connectedIds.add(tgtId);
-      if (tgtId === d.id) connectedIds.add(srcId);
+      if (!adjTo[srcId]) adjTo[srcId] = [];
+      adjTo[srcId].push(tgtId);
+      if (!adjFrom[tgtId]) adjFrom[tgtId] = [];
+      adjFrom[tgtId].push(srcId);
+    });
+
+    var connectedIds = new Set();
+    connectedIds.add(d.id);
+    var queue = [d.id];
+    while (queue.length > 0) {
+      var cur = queue.shift();
+      (adjTo[cur] || []).forEach(function (child) {
+        if (!connectedIds.has(child)) {
+          connectedIds.add(child);
+          queue.push(child);
+        }
+      });
+    }
+    (adjFrom[d.id] || []).forEach(function (parent) {
+      connectedIds.add(parent);
     });
 
     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;

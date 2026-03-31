@@ -130,20 +130,45 @@ func (r *GitHubResolver) fetchTree(ctx context.Context, owner, repo, ref string)
 }
 
 func (r *GitHubResolver) fetchFileContent(ctx context.Context, owner, repo, ref, path string) ([]byte, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/contents/%s?ref=%s", r.baseURL, owner, repo, path, url.QueryEscape(ref))
+	contentURL := fmt.Sprintf("%s/repos/%s/%s/contents/%s?ref=%s", r.baseURL, owner, repo, path, url.QueryEscape(ref))
 	var result struct {
-		Content  string `json:"content"`
-		Encoding string `json:"encoding"`
+		Content     string `json:"content"`
+		Encoding    string `json:"encoding"`
+		DownloadURL string `json:"download_url"`
 	}
-	if err := r.getJSON(ctx, url, &result); err != nil {
+	if err := r.getJSON(ctx, contentURL, &result); err != nil {
 		return nil, err
 	}
-	if result.Encoding != "base64" {
-		return nil, fmt.Errorf("unexpected encoding %q for %s", result.Encoding, path)
+	if result.Encoding == "base64" {
+		// GitHub API returns base64 with embedded newlines; strip them before decoding.
+		clean := strings.ReplaceAll(result.Content, "\n", "")
+		return base64.StdEncoding.DecodeString(clean)
 	}
-	// GitHub API returns base64 with embedded newlines; strip them before decoding.
-	clean := strings.ReplaceAll(result.Content, "\n", "")
-	return base64.StdEncoding.DecodeString(clean)
+	// Files > 1 MB have encoding "none" — download via raw URL.
+	if result.DownloadURL != "" {
+		return r.fetchRaw(ctx, result.DownloadURL)
+	}
+	return nil, fmt.Errorf("unexpected encoding %q and no download_url for %s", result.Encoding, path)
+}
+
+// fetchRaw downloads a file directly from a raw URL (e.g., raw.githubusercontent.com).
+func (r *GitHubResolver) fetchRaw(ctx context.Context, rawURL string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.token != "" {
+		req.Header.Set("Authorization", "Bearer "+r.token)
+	}
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("raw download %s: %d", rawURL, resp.StatusCode)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 100<<20)) // 100 MB cap
 }
 
 func (r *GitHubResolver) getJSON(ctx context.Context, url string, target interface{}) error {
