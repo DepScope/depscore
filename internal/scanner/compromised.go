@@ -51,10 +51,16 @@ func ParseCompromisedList(s string) ([]CompromisedTarget, error) {
 }
 
 // parseTarget splits on the LAST @ (scoped packages like @scope/pkg@1.0.0 have @ at start).
+// If no version is specified (e.g., just "axios"), it defaults to "*" (match any version).
 func parseTarget(entry string) (CompromisedTarget, error) {
 	at := strings.LastIndex(entry, "@")
 	if at <= 0 {
-		return CompromisedTarget{}, fmt.Errorf("invalid target %q: expected name@version", entry)
+		// No @ or only at position 0 (scoped package without version) — treat as "any version".
+		name := entry
+		if name == "" {
+			return CompromisedTarget{}, fmt.Errorf("empty target")
+		}
+		return CompromisedTarget{Name: name, VersionOrRange: "*"}, nil
 	}
 	return CompromisedTarget{
 		Name:           entry[:at],

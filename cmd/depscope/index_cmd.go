@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/depscope/depscope/internal/cache"
 	"github.com/depscope/depscope/internal/scanner"
@@ -17,8 +18,13 @@ func init() {
 	indexCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite index database")
 
 	indexStatusCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite index database")
+	indexSearchCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite index database")
+	indexListCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite index database")
+	indexListCmd.Flags().String("ecosystem", "", "filter by ecosystem (npm, go, python, rust, php)")
 
 	indexCmd.AddCommand(indexStatusCmd)
+	indexCmd.AddCommand(indexSearchCmd)
+	indexCmd.AddCommand(indexListCmd)
 	rootCmd.AddCommand(indexCmd)
 }
 
@@ -47,6 +53,32 @@ var indexStatusCmd = &cobra.Command{
 	Short:        "Show index statistics",
 	SilenceUsage: true,
 	RunE:         runIndexStatus,
+}
+
+var indexSearchCmd = &cobra.Command{
+	Use:   "search <package-name>",
+	Short: "Search for a package in the index",
+	Long: `Find all manifests that reference a given package name.
+
+Examples:
+  depscope index search axios
+  depscope index search @scope/ui
+  depscope index search golang.org/x/sync`,
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
+	RunE:         runIndexSearch,
+}
+
+var indexListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all indexed manifests and their package counts",
+	Long: `Show every indexed manifest file with its ecosystem and package count.
+
+Examples:
+  depscope index list
+  depscope index list --ecosystem npm`,
+	SilenceUsage: true,
+	RunE:         runIndexList,
 }
 
 func runIndex(cmd *cobra.Command, args []string) error {
@@ -178,5 +210,93 @@ func runIndexStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	return nil
+}
+
+func runIndexSearch(cmd *cobra.Command, args []string) error {
+	query := args[0]
+	dbPath, _ := cmd.Flags().GetString("db")
+
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return fmt.Errorf("no index database at %s — run 'depscope index' first", dbPath)
+	}
+
+	db, err := cache.NewCacheDB(dbPath)
+	if err != nil {
+		return fmt.Errorf("open index db: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	found := 0
+	for _, eco := range []string{"npm", "python", "go", "rust", "php"} {
+		projectID := eco + "/" + query
+		results, err := db.SearchIndexByPackageName(projectID)
+		if err != nil {
+			continue
+		}
+		for _, r := range results {
+			if found == 0 {
+				fmt.Printf("%-10s %-20s %-60s %s\n", "ECO", "VERSION", "MANIFEST", "SCOPE")
+				fmt.Println(strings.Repeat("-", 110))
+			}
+			found++
+			fmt.Printf("%-10s %-20s %-60s %s\n", r.Ecosystem, r.Version, r.ManifestRelPath, r.DepScope)
+		}
+	}
+
+	if found == 0 {
+		fmt.Printf("No results for %q in the index.\n", query)
+		fmt.Println("Make sure you've run 'depscope index <path>' first.")
+	} else {
+		fmt.Printf("\n%d result(s)\n", found)
+	}
+	return nil
+}
+
+func runIndexList(cmd *cobra.Command, args []string) error {
+	dbPath, _ := cmd.Flags().GetString("db")
+	ecoFilter, _ := cmd.Flags().GetString("ecosystem")
+
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return fmt.Errorf("no index database at %s — run 'depscope index' first", dbPath)
+	}
+
+	db, err := cache.NewCacheDB(dbPath)
+	if err != nil {
+		return fmt.Errorf("open index db: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	q := `SELECT im.rel_path, im.ecosystem, COUNT(mp.project_id) as pkg_count
+	      FROM index_manifests im
+	      LEFT JOIN manifest_packages mp ON mp.manifest_id = im.id`
+	var qArgs []any
+	if ecoFilter != "" {
+		q += ` WHERE im.ecosystem = ?`
+		qArgs = append(qArgs, ecoFilter)
+	}
+	q += ` GROUP BY im.id ORDER BY im.ecosystem, im.rel_path`
+
+	rows, err := db.DB().Query(q, qArgs...)
+	if err != nil {
+		return fmt.Errorf("query manifests: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	fmt.Printf("%-10s %6s  %s\n", "ECO", "PKGS", "MANIFEST")
+	fmt.Println(strings.Repeat("-", 90))
+
+	count := 0
+	for rows.Next() {
+		var relPath, eco string
+		var pkgCount int
+		if err := rows.Scan(&relPath, &eco, &pkgCount); err != nil {
+			return err
+		}
+		fmt.Printf("%-10s %6d  %s\n", eco, pkgCount, relPath)
+		count++
+	}
+
+	fmt.Printf("\n%d manifest(s)\n", count)
 	return nil
 }
