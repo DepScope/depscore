@@ -273,6 +273,8 @@ func extractDependencyEdges(absPath, eco string) ([]indexedDep, []indexedPackage
 		return extractCargoDeps(dir)
 	case "python":
 		return extractPoetryDeps(dir)
+	case "php":
+		return extractComposerDeps(dir)
 	default:
 		return nil, nil
 	}
@@ -519,6 +521,64 @@ func extractPoetryDeps(dir string) ([]indexedDep, []indexedPackage) {
 	}
 
 	return deps, pkgs
+}
+
+// extractComposerDeps parses composer.lock and returns dependency edges.
+// composer.lock has "packages" and "packages-dev" arrays, each entry has
+// "name", "version", and "require" (map of dep name → constraint).
+func extractComposerDeps(dir string) ([]indexedDep, []indexedPackage) {
+	lockData, err := os.ReadFile(filepath.Join(dir, "composer.lock"))
+	if err != nil {
+		return nil, nil
+	}
+
+	var lock struct {
+		Packages    []composerLockEntry `json:"packages"`
+		PackagesDev []composerLockEntry `json:"packages-dev"`
+	}
+	if err := json.Unmarshal(lockData, &lock); err != nil {
+		return nil, nil
+	}
+
+	var deps []indexedDep
+	var pkgs []indexedPackage
+
+	allPkgs := append(lock.Packages, lock.PackagesDev...)
+	for _, pkg := range allPkgs {
+		version := strings.TrimPrefix(pkg.Version, "v")
+		projectID := "php/" + pkg.Name
+		versionKey := projectID + "@" + version
+
+		pkgs = append(pkgs, indexedPackage{
+			ProjectID:  projectID,
+			VersionKey: versionKey,
+			Name:       pkg.Name,
+			Constraint: version,
+			DepScope:   "lockfile",
+		})
+
+		for depName, constraint := range pkg.Require {
+			// Skip php, ext-*, lib-* entries.
+			if depName == "php" || strings.HasPrefix(depName, "ext-") || strings.HasPrefix(depName, "lib-") {
+				continue
+			}
+			deps = append(deps, indexedDep{
+				ParentProjectID:  projectID,
+				ParentVersionKey: versionKey,
+				ChildProjectID:   "php/" + depName,
+				ChildConstraint:  constraint,
+			})
+		}
+	}
+
+	return deps, pkgs
+}
+
+// composerLockEntry is one entry in composer.lock's packages array.
+type composerLockEntry struct {
+	Name    string            `json:"name"`
+	Version string            `json:"version"`
+	Require map[string]string `json:"require"`
 }
 
 // unquoteTOML removes surrounding double quotes from a TOML value string.

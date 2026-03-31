@@ -348,6 +348,72 @@ func TestExtractCargoDeps_NoLockfile(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// extractComposerDeps
+// ---------------------------------------------------------------------------
+
+func TestExtractComposerDeps(t *testing.T) {
+	dir := t.TempDir()
+
+	composerLock := `{
+  "packages": [
+    {
+      "name": "symfony/console",
+      "version": "v6.4.0",
+      "require": {
+        "php": ">=8.1",
+        "symfony/string": "^5.4|^6.0",
+        "symfony/polyfill-mbstring": "~1.0"
+      }
+    },
+    {
+      "name": "symfony/string",
+      "version": "v6.4.0",
+      "require": {
+        "php": ">=8.1",
+        "symfony/polyfill-mbstring": "~1.0"
+      }
+    },
+    {
+      "name": "symfony/polyfill-mbstring",
+      "version": "v1.28.0",
+      "require": {}
+    }
+  ],
+  "packages-dev": []
+}`
+	writeFile(t, dir, "composer.lock", []byte(composerLock))
+
+	deps, pkgs := extractComposerDeps(dir)
+
+	// 3 packages
+	assert.Len(t, pkgs, 3)
+
+	// Expected edges (php/ext-* skipped):
+	// symfony/console → symfony/string
+	// symfony/console → symfony/polyfill-mbstring
+	// symfony/string → symfony/polyfill-mbstring
+	assert.Len(t, deps, 3)
+
+	type edge struct{ parent, child string }
+	edgeSet := map[edge]string{}
+	for _, d := range deps {
+		edgeSet[edge{d.ParentProjectID, d.ChildProjectID}] = d.ChildConstraint
+	}
+
+	assert.Contains(t, edgeSet, edge{"php/symfony/console", "php/symfony/string"})
+	assert.Contains(t, edgeSet, edge{"php/symfony/console", "php/symfony/polyfill-mbstring"})
+	assert.Contains(t, edgeSet, edge{"php/symfony/string", "php/symfony/polyfill-mbstring"})
+	assert.Equal(t, "^5.4|^6.0", edgeSet[edge{"php/symfony/console", "php/symfony/string"}])
+}
+
+func TestExtractComposerDeps_NoLockfile(t *testing.T) {
+	dir := t.TempDir()
+	deps, pkgs := extractComposerDeps(dir)
+	assert.Nil(t, deps)
+	assert.Nil(t, pkgs)
+}
+
+// ---------------------------------------------------------------------------
 // RunIndex with dependency edges (npm lockfile)
 // ---------------------------------------------------------------------------
 
