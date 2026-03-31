@@ -83,6 +83,11 @@ func parseSemver(s string) (semversion, error) {
 	return semversion{major: major, minor: minor, patch: patch}, nil
 }
 
+// SemverSatisfies is an exported wrapper for semverSatisfies.
+func SemverSatisfies(constraint, version string) bool {
+	return semverSatisfies(constraint, version)
+}
+
 // semverSatisfies checks whether version satisfies an npm-style semver
 // constraint. Supported forms:
 //
