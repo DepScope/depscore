@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/depscope/depscope/internal/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,4 +64,136 @@ dependencies = ["requests>=2.0"]
 	assert.Equal(t, 1, summary.Potentially)
 	assert.Equal(t, 1, summary.Safe)
 	assert.Equal(t, 0, summary.Unresolvable)
+}
+
+func TestDiscoverFromCache(t *testing.T) {
+	// Set up a temp CacheDB.
+	dbPath := filepath.Join(t.TempDir(), "test-discover-cache.db")
+	db, err := cache.NewCacheDB(dbPath)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	// Pre-populate: project A depends on lodash@4.17.20
+	require.NoError(t, db.UpsertProject(&cache.Project{
+		ID: "project-a", Ecosystem: "npm", Name: "project-a",
+	}))
+	require.NoError(t, db.UpsertVersion(&cache.ProjectVersion{
+		ProjectID: "project-a", VersionKey: "project-a@1.0.0",
+	}))
+	require.NoError(t, db.AddVersionDependency(&cache.VersionDependency{
+		ParentProjectID:        "project-a",
+		ParentVersionKey:       "project-a@1.0.0",
+		ChildProjectID:         "npm/lodash",
+		ChildVersionConstraint: "npm/lodash@4.17.20",
+		DepScope:               "depends_on",
+	}))
+
+	// Pre-populate: project B depends on lodash@4.17.21
+	require.NoError(t, db.UpsertProject(&cache.Project{
+		ID: "project-b", Ecosystem: "npm", Name: "project-b",
+	}))
+	require.NoError(t, db.UpsertVersion(&cache.ProjectVersion{
+		ProjectID: "project-b", VersionKey: "project-b@2.0.0",
+	}))
+	require.NoError(t, db.AddVersionDependency(&cache.VersionDependency{
+		ParentProjectID:        "project-b",
+		ParentVersionKey:       "project-b@2.0.0",
+		ChildProjectID:         "npm/lodash",
+		ChildVersionConstraint: "npm/lodash@4.17.21",
+		DepScope:               "depends_on",
+	}))
+
+	// Query with range "<4.17.21" — only project A should match.
+	results, err := DiscoverFromCache(db, "npm/lodash", "<4.17.21")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+
+	assert.Equal(t, "project-a", results[0].ProjectID)
+	assert.Equal(t, "project-a@1.0.0", results[0].VersionKey)
+	assert.Equal(t, "4.17.20", results[0].ChildVersion)
+	assert.Equal(t, "depends_on", results[0].EdgeType)
+}
+
+func TestDiscoverFromCache_InvalidRange(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test-discover-cache-err.db")
+	db, err := cache.NewCacheDB(dbPath)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	_, err = DiscoverFromCache(db, "npm/lodash", "")
+	assert.Error(t, err)
+}
+
+func TestDiscoverFromCache_NoResults(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test-discover-empty.db")
+	db, err := cache.NewCacheDB(dbPath)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	// Cache has no matching dependents for this package.
+	results, err := DiscoverFromCache(db, "npm/nonexistent-package", ">=1.0.0")
+	require.NoError(t, err)
+	assert.Empty(t, results, "no dependents in cache should return empty list")
+}
+
+func TestDiscoverFromCache_VersionFiltering(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test-discover-filter.db")
+	db, err := cache.NewCacheDB(dbPath)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	// Set up two projects depending on lodash at different versions.
+	// project-x depends on lodash@4.17.20
+	require.NoError(t, db.UpsertProject(&cache.Project{
+		ID: "project-x", Ecosystem: "npm", Name: "project-x",
+	}))
+	require.NoError(t, db.UpsertVersion(&cache.ProjectVersion{
+		ProjectID: "project-x", VersionKey: "project-x@1.0.0",
+	}))
+	require.NoError(t, db.AddVersionDependency(&cache.VersionDependency{
+		ParentProjectID:        "project-x",
+		ParentVersionKey:       "project-x@1.0.0",
+		ChildProjectID:         "npm/lodash",
+		ChildVersionConstraint: "npm/lodash@4.17.20",
+		DepScope:               "depends_on",
+	}))
+
+	// project-y depends on lodash@4.17.21
+	require.NoError(t, db.UpsertProject(&cache.Project{
+		ID: "project-y", Ecosystem: "npm", Name: "project-y",
+	}))
+	require.NoError(t, db.UpsertVersion(&cache.ProjectVersion{
+		ProjectID: "project-y", VersionKey: "project-y@2.0.0",
+	}))
+	require.NoError(t, db.AddVersionDependency(&cache.VersionDependency{
+		ParentProjectID:        "project-y",
+		ParentVersionKey:       "project-y@2.0.0",
+		ChildProjectID:         "npm/lodash",
+		ChildVersionConstraint: "npm/lodash@4.17.21",
+		DepScope:               "depends_on",
+	}))
+
+	// Query range ">=4.17.21" — only project-y (lodash@4.17.21) should match.
+	results, err := DiscoverFromCache(db, "npm/lodash", ">=4.17.21")
+	require.NoError(t, err)
+	require.Len(t, results, 1, "only lodash@4.17.21 satisfies >=4.17.21")
+	assert.Equal(t, "project-y", results[0].ProjectID)
+	assert.Equal(t, "4.17.21", results[0].ChildVersion)
+}
+
+func TestExtractVersion(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"npm/lodash@4.17.20", "4.17.20"},
+		{"4.17.20", "4.17.20"},
+		{"Go/github.com/foo/bar@v1.2.3", "v1.2.3"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			assert.Equal(t, tt.want, extractVersion(tt.input))
+		})
+	}
 }

@@ -16,9 +16,10 @@ import (
 type viewMode int
 
 const (
-	viewTree  viewMode = iota
+	viewTree   viewMode = iota
 	viewFlat
 	viewGraph
+	viewWalker
 )
 
 // Model is the bubbletea model for the TUI explorer.
@@ -40,6 +41,7 @@ type Model struct {
 	pathResults [][]string // paths from roots to selected node
 	offset      int      // scroll offset for viewport
 	graphView   *graphview.GraphViewModel // graph view model (lazy-initialized)
+	walkerView  *WalkerModel             // walker view model (lazy-initialized)
 }
 
 // NewModel creates a new TUI model from a graph.
@@ -130,6 +132,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateGraph(msg)
 		}
 
+		// Handle walker view mode keys.
+		if m.mode == viewWalker {
+			return m.updateWalker(msg)
+		}
+
 		switch msg.String() {
 		case "up", "k":
 			if m.cursor > 0 {
@@ -187,6 +194,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.offset = 0
 		case "g":
 			m.enterGraphView()
+		case "w":
+			m.enterWalkerView()
 		case "/":
 			m.searching = true
 			m.searchInput.Focus()
@@ -244,6 +253,8 @@ func (m Model) View() string {
 	contentHeight := m.contentHeight()
 	if m.mode == viewGraph {
 		b.WriteString(m.renderGraphView(contentHeight))
+	} else if m.mode == viewWalker {
+		b.WriteString(m.renderWalkerView(contentHeight))
 	} else if m.showPaths {
 		b.WriteString(m.renderPaths(contentHeight))
 	} else if m.inspecting != "" {
@@ -292,6 +303,8 @@ func (m Model) renderHeader() string {
 		viewStr = "flat"
 	case viewGraph:
 		viewStr = "graph"
+	case viewWalker:
+		viewStr = "walker"
 	}
 
 	text := fmt.Sprintf(" depscope explore -- %d nodes, %d edges | Filter: %s | View: %s ",
@@ -310,8 +323,12 @@ func (m Model) renderFooter() string {
 		return styleFooter.Width(m.width).Render(
 			" [↑↓] navigate  [enter] zoom in  [esc] zoom out  [+/-] zoom  [g] back  [q] quit")
 	}
+	if m.mode == viewWalker {
+		return styleFooter.Width(m.width).Render(
+			" [↑↓] navigate  [enter] drill in  [backspace] go up  [w] back to tree  [q] quit")
+	}
 	return styleFooter.Width(m.width).Render(
-		" [↑↓] navigate  [enter] expand  [/] search  [f] filter  [i] inspect  [p] paths  [g] graph  [Tab] view  [q] quit")
+		" [↑↓] navigate  [enter] expand  [/] search  [f] filter  [i] inspect  [p] paths  [g] graph  [w] walker  [Tab] view  [q] quit")
 }
 
 // contentHeight returns the available lines for the main content.
@@ -435,6 +452,46 @@ func (m Model) updateGraph(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	return m, nil
+}
+
+// enterWalkerView switches to walker view mode.
+func (m *Model) enterWalkerView() {
+	if m.walkerView == nil {
+		m.walkerView = NewWalkerModel(m.graph)
+	}
+	m.mode = viewWalker
+	m.walkerView.SetSize(m.width, m.contentHeight())
+}
+
+// updateWalker handles key events in walker view mode.
+func (m Model) updateWalker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		m.walkerView.CursorUp()
+	case "down", "j":
+		m.walkerView.CursorDown()
+	case "enter":
+		m.walkerView.Enter()
+	case "backspace":
+		m.walkerView.Back()
+	case "w", "esc":
+		// Toggle back to tree view.
+		m.mode = viewTree
+		m.rebuildVisible()
+		m.clampCursor()
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+// renderWalkerView renders the walker view for the content area.
+func (m Model) renderWalkerView(contentHeight int) string {
+	if m.walkerView == nil {
+		return ""
+	}
+	m.walkerView.SetSize(m.width, contentHeight)
+	return m.walkerView.View()
 }
 
 // renderGraphView renders the graph view for the content area.

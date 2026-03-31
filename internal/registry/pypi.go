@@ -39,7 +39,7 @@ func (c *PyPIClient) Fetch(name, version string) (*PackageInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("pypi: GET %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("pypi: GET %s returned %d", url, resp.StatusCode)
@@ -61,7 +61,7 @@ func (c *PyPIClient) FetchDependencies(name, version string) ([]Dependency, erro
 	if err != nil {
 		return nil, fmt.Errorf("pypi: GET %s: %w", apiURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		// Fall back to unversioned endpoint
@@ -70,7 +70,7 @@ func (c *PyPIClient) FetchDependencies(name, version string) ([]Dependency, erro
 		if err != nil {
 			return nil, fmt.Errorf("pypi: GET %s: %w", apiURL, err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("pypi: GET %s returned %d", apiURL, resp.StatusCode)
 		}

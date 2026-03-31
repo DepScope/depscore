@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/depscope/depscope/internal/config"
 	"github.com/depscope/depscope/internal/core"
 	"github.com/depscope/depscope/internal/graph"
 	"github.com/depscope/depscope/internal/scanner"
@@ -154,43 +155,117 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 func (s *Server) runScan(ctx context.Context, id, rawURL, profile string) {
 	_ = s.store.UpdateStatus(id, "running")
 
-	result, err := scanner.ScanURL(ctx, rawURL, scanner.Options{Profile: profile})
+	crawlResult, err := scanner.CrawlURL(ctx, rawURL, scanner.CrawlOptions{
+		Profile:     profile,
+		CacheDBPath: s.cacheDBPath,
+		TrustedOrgs: s.trustedOrgs,
+	})
 	if err != nil {
 		log.Printf("scan %s failed: %v", id, err)
 		_ = s.store.SaveError(id, err.Error())
 		return
 	}
 
-	_ = s.store.SaveResult(id, result)
+	// Build ScanResult from crawl graph for backward compat with the results template.
+	cfg := config.ProfileByName(profile)
+	g := crawlResult.Graph
 
-	if s.graphStore != nil && result.Graph != nil {
-		if g, ok := result.Graph.(*graph.Graph); ok {
-			nodes := make([]store.GraphNode, 0, len(g.Nodes))
-			for _, n := range g.Nodes {
-				nodes = append(nodes, store.GraphNode{
-					NodeID:   n.ID,
-					Type:     n.Type.String(),
-					Name:     n.Name,
-					Version:  n.Version,
-					Ref:      n.Ref,
-					Score:    n.Score,
-					Risk:     string(n.Risk),
-					Pinning:  n.Pinning.String(),
-					Metadata: n.Metadata,
-				})
+	var packages []core.PackageResult
+	var allIssues []core.Issue
+	directCount, transitiveCount := 0, 0
+	depsMap := make(map[string][]string)
+
+	for _, n := range g.Nodes {
+		eco := ""
+		if e, ok := n.Metadata["ecosystem"].(string); ok {
+			eco = e
+		}
+		if eco == "" && n.ProjectID != "" {
+			// Extract ecosystem from ProjectID like "go/github.com/foo"
+			if idx := strings.Index(n.ProjectID, "/"); idx > 0 {
+				eco = n.ProjectID[:idx]
 			}
-			edges := make([]store.GraphEdge, 0, len(g.Edges))
-			for _, e := range g.Edges {
-				edges = append(edges, store.GraphEdge{
-					From:  e.From,
-					To:    e.To,
-					Type:  e.Type.String(),
-					Depth: e.Depth,
-				})
-			}
-			if err := s.graphStore.SaveGraph(id, nodes, edges); err != nil {
-				log.Printf("save graph for scan %s: %v", id, err)
-			}
+		}
+
+		risk := n.Risk
+		if risk == "" || risk == core.RiskUnknown {
+			risk = core.RiskLevelFromScore(n.Score)
+		}
+
+		pr := core.PackageResult{
+			Name:      n.Name,
+			Version:   n.Version,
+			Ecosystem: eco,
+			OwnScore:  n.Score,
+			OwnRisk:   risk,
+			TransitiveRiskScore: n.Score,
+			TransitiveRisk:      risk,
+		}
+
+		// Count deps from graph edges
+		children := g.Neighbors(n.ID)
+		pr.DependsOn = children
+		pr.DependsOnCount = len(children)
+		depsMap[n.Name] = children
+
+		packages = append(packages, pr)
+	}
+
+	// Count direct vs transitive (depth from edges)
+	hasIncoming := make(map[string]bool)
+	for _, e := range g.Edges {
+		if g.Nodes[e.From] != nil {
+			hasIncoming[e.To] = true
+		}
+	}
+	for nodeID := range g.Nodes {
+		if !hasIncoming[nodeID] {
+			directCount++
+		} else {
+			transitiveCount++
+		}
+	}
+
+	scanResult := &core.ScanResult{
+		Profile:        profile,
+		PassThreshold:  cfg.PassThreshold,
+		DirectDeps:     directCount,
+		TransitiveDeps: transitiveCount,
+		Packages:       packages,
+		AllIssues:      allIssues,
+		DepsMap:        depsMap,
+		Graph:          g,
+	}
+	_ = s.store.SaveResult(id, scanResult)
+
+	if s.graphStore != nil && g != nil {
+		nodes := make([]store.GraphNode, 0, len(g.Nodes))
+		for _, n := range g.Nodes {
+			nodes = append(nodes, store.GraphNode{
+				NodeID:     n.ID,
+				Type:       n.Type.String(),
+				Name:       n.Name,
+				Version:    n.Version,
+				Ref:        n.Ref,
+				Score:      n.Score,
+				Risk:       string(n.Risk),
+				Pinning:    n.Pinning.String(),
+				Metadata:   n.Metadata,
+				ProjectID:  n.ProjectID,
+				VersionKey: n.VersionKey,
+			})
+		}
+		edges := make([]store.GraphEdge, 0, len(g.Edges))
+		for _, e := range g.Edges {
+			edges = append(edges, store.GraphEdge{
+				From:  e.From,
+				To:    e.To,
+				Type:  e.Type.String(),
+				Depth: e.Depth,
+			})
+		}
+		if err := s.graphStore.SaveGraph(id, nodes, edges); err != nil {
+			log.Printf("save graph for scan %s: %v", id, err)
 		}
 	}
 }

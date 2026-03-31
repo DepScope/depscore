@@ -81,7 +81,7 @@ func newTestResolver(t *testing.T, srv *httptest.Server) *Resolver {
 	t.Helper()
 	tmpDir, err := os.MkdirTemp("", "depscope-resolver-test-*")
 	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(tmpDir) })
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
 
 	dc := cache.NewDiskCache(tmpDir)
 	return NewResolver("fake-token", WithCache(dc), WithBaseURL(srv.URL))
@@ -96,13 +96,13 @@ func TestResolveTagToSHA(t *testing.T) {
 		"/repos/actions/checkout/git/ref/tags/v4": func(w http.ResponseWriter, r *http.Request) {
 			refHits++
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeRefResponse(testSHA))
+			_, _ = fmt.Fprint(w, makeRefResponse(testSHA))
 		},
 		"/repos/actions/checkout/contents/action.yml": func(w http.ResponseWriter, r *http.Request) {
 			contentHits++
 			assert.Equal(t, testSHA, r.URL.Query().Get("ref"))
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeContentResponse(actionYMLNode20))
+			_, _ = fmt.Fprint(w, makeContentResponse(actionYMLNode20))
 		},
 	})
 	defer srv.Close()
@@ -135,7 +135,7 @@ func TestResolveSHAPinnedSkipsTagLookup(t *testing.T) {
 		"/repos/actions/checkout/contents/action.yml": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, testSHA, r.URL.Query().Get("ref"))
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeContentResponse(actionYMLNode20))
+			_, _ = fmt.Fprint(w, makeContentResponse(actionYMLNode20))
 		},
 	})
 	defer srv.Close()
@@ -158,11 +158,11 @@ func TestResolveCompositeAction(t *testing.T) {
 	srv := newTestServer(t, map[string]http.HandlerFunc{
 		"/repos/myorg/myaction/git/ref/tags/v1": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeRefResponse(testSHA))
+			_, _ = fmt.Fprint(w, makeRefResponse(testSHA))
 		},
 		"/repos/myorg/myaction/contents/action.yml": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeContentResponse(actionYMLComposite))
+			_, _ = fmt.Fprint(w, makeContentResponse(actionYMLComposite))
 		},
 	})
 	defer srv.Close()
@@ -183,11 +183,11 @@ func TestResolveDockerAction(t *testing.T) {
 	srv := newTestServer(t, map[string]http.HandlerFunc{
 		"/repos/myorg/dockeraction/git/ref/tags/v2": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeRefResponse(testSHA))
+			_, _ = fmt.Fprint(w, makeRefResponse(testSHA))
 		},
 		"/repos/myorg/dockeraction/contents/action.yml": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeContentResponse(actionYMLDocker))
+			_, _ = fmt.Fprint(w, makeContentResponse(actionYMLDocker))
 		},
 	})
 	defer srv.Close()
@@ -250,12 +250,12 @@ func TestResolveCachesTagToSHA(t *testing.T) {
 		"/repos/actions/checkout/git/ref/tags/v4": func(w http.ResponseWriter, r *http.Request) {
 			refHits++
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeRefResponse(testSHA))
+			_, _ = fmt.Fprint(w, makeRefResponse(testSHA))
 		},
 		"/repos/actions/checkout/contents/action.yml": func(w http.ResponseWriter, r *http.Request) {
 			contentHits++
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeContentResponse(actionYMLNode20))
+			_, _ = fmt.Fprint(w, makeContentResponse(actionYMLNode20))
 		},
 	})
 	defer srv.Close()
@@ -282,7 +282,7 @@ func TestResolveFallsBackToActionYaml(t *testing.T) {
 	srv := newTestServer(t, map[string]http.HandlerFunc{
 		"/repos/actions/checkout/git/ref/tags/v4": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeRefResponse(testSHA))
+			_, _ = fmt.Fprint(w, makeRefResponse(testSHA))
 		},
 		"/repos/actions/checkout/contents/action.yml": func(w http.ResponseWriter, r *http.Request) {
 			// Return 404 to trigger fallback to action.yaml
@@ -291,7 +291,7 @@ func TestResolveFallsBackToActionYaml(t *testing.T) {
 		"/repos/actions/checkout/contents/action.yaml": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, testSHA, r.URL.Query().Get("ref"))
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, makeContentResponse(actionYMLNode20))
+			_, _ = fmt.Fprint(w, makeContentResponse(actionYMLNode20))
 		},
 	})
 	defer srv.Close()

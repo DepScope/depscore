@@ -21,12 +21,25 @@
         <label><input type="checkbox" class="type-filter" value="workflow" checked> Workflows <span id="count-workflow"></span></label>
         <label><input type="checkbox" class="type-filter" value="docker_image" checked> Docker <span id="count-docker_image"></span></label>
         <label><input type="checkbox" class="type-filter" value="script_download" checked> Scripts <span id="count-script_download"></span></label>
+        <label><input type="checkbox" class="type-filter" value="precommit_hook" checked> Hooks <span id="count-precommit_hook"></span></label>
+        <label><input type="checkbox" class="type-filter" value="terraform_module" checked> Terraform <span id="count-terraform_module"></span></label>
+        <label><input type="checkbox" class="type-filter" value="git_submodule" checked> Submodules <span id="count-git_submodule"></span></label>
+        <label><input type="checkbox" class="type-filter" value="dev_tool" checked> Dev Tools <span id="count-dev_tool"></span></label>
+        <label><input type="checkbox" class="type-filter" value="build_tool" checked> Build Tools <span id="count-build_tool"></span></label>
       </div>
       <div class="sidebar-section">
         <h3>Risk Filter</h3>
         <label><input type="radio" name="risk" value="" checked> All</label>
         <label><input type="radio" name="risk" value="HIGH"> HIGH+</label>
         <label><input type="radio" name="risk" value="CRITICAL"> CRITICAL</label>
+      </div>
+      <div class="sidebar-section">
+        <h3>Depth Limit</h3>
+        <div class="depth-slider-wrapper">
+          <input type="range" id="depth-slider" min="0" max="10" value="0" class="depth-slider">
+          <span id="depth-value" class="depth-value">All</span>
+        </div>
+        <p class="depth-hint">0 = show all depths</p>
       </div>
       <div class="sidebar-section">
         <h3>Blast Radius</h3>

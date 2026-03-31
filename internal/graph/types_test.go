@@ -37,6 +37,51 @@ func TestPinningQualityString(t *testing.T) {
 	assert.Equal(t, "n/a", PinningNA.String())
 }
 
+func TestNewNodeTypes(t *testing.T) {
+	tests := []struct {
+		nt   NodeType
+		want string
+	}{
+		{NodePrecommitHook, "precommit_hook"},
+		{NodeTerraformModule, "terraform_module"},
+		{NodeGitSubmodule, "git_submodule"},
+		{NodeDevTool, "dev_tool"},
+		{NodeBuildTool, "build_tool"},
+	}
+	for _, tt := range tests {
+		if got := tt.nt.String(); got != tt.want {
+			t.Errorf("NodeType(%d).String() = %q, want %q", tt.nt, got, tt.want)
+		}
+	}
+}
+
+func TestNewEdgeTypes(t *testing.T) {
+	tests := []struct {
+		et   EdgeType
+		want string
+	}{
+		{EdgeUsesHook, "uses_hook"},
+		{EdgeUsesModule, "uses_module"},
+		{EdgeIncludesSubmodule, "includes_submodule"},
+		{EdgeUsesTool, "uses_tool"},
+		{EdgeBuiltWith, "built_with"},
+	}
+	for _, tt := range tests {
+		if got := tt.et.String(); got != tt.want {
+			t.Errorf("EdgeType(%d).String() = %q, want %q", tt.et, got, tt.want)
+		}
+	}
+}
+
+func TestPinningSemverRange(t *testing.T) {
+	if PinningSemverRange.String() != "semver_range" {
+		t.Errorf("PinningSemverRange.String() = %q, want %q", PinningSemverRange.String(), "semver_range")
+	}
+	if PinningSemverRange <= PinningExactVersion || PinningSemverRange >= PinningMajorTag {
+		t.Error("PinningSemverRange should be between PinningExactVersion and PinningMajorTag")
+	}
+}
+
 func TestNodeID(t *testing.T) {
 	assert.Equal(t, "package:python/litellm@1.82.8", NodeID(NodePackage, "python/litellm@1.82.8"))
 	assert.Equal(t, "action:actions/checkout@v4", NodeID(NodeAction, "actions/checkout@v4"))

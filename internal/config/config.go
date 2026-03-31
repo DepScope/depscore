@@ -25,18 +25,38 @@ type VulnSources struct {
 }
 
 type Registries struct {
-	GitHubToken string
+	GitHubToken string // Deprecated: use Auth.GitHubToken instead
+}
+
+type Auth struct {
+	GitHubToken    string
+	GitLabToken    string
+	TerraformToken string
+	BitbucketToken string
+}
+
+type ConcurrencyConfig struct {
+	RegistryWorkers  int // default 10
+	GitCloneWorkers  int // default 3
+	GitHubAPIWorkers int // default 5
+}
+
+func DefaultConcurrency() ConcurrencyConfig {
+	return ConcurrencyConfig{RegistryWorkers: 10, GitCloneWorkers: 3, GitHubAPIWorkers: 5}
 }
 
 type Config struct {
-	Profile       string
-	PassThreshold int
-	Depth         int
-	Concurrency   int
-	CacheTTL      CacheTTL
-	Weights       Weights
-	VulnSources   VulnSources
-	Registries    Registries
+	Profile           string
+	PassThreshold     int
+	Depth             int
+	Concurrency       int
+	CacheTTL          CacheTTL
+	Weights           Weights
+	VulnSources       VulnSources
+	Registries        Registries
+	TrustedOrgs       []string
+	Auth              Auth
+	ConcurrencyConfig ConcurrencyConfig
 }
 
 var envVarRe = regexp.MustCompile(`^\$\{(.+)\}$`)
@@ -86,6 +106,28 @@ func LoadFile(path string) (Config, error) {
 	}
 	cfg.Registries = Registries{
 		GitHubToken: ResolveEnv(v.GetString("registries.github_token")),
+	}
+
+	cfg.TrustedOrgs = v.GetStringSlice("trusted_orgs")
+	cfg.Auth = Auth{
+		GitHubToken:    ResolveEnv(v.GetString("auth.github_token")),
+		GitLabToken:    ResolveEnv(v.GetString("auth.gitlab_token")),
+		TerraformToken: ResolveEnv(v.GetString("auth.terraform_token")),
+		BitbucketToken: ResolveEnv(v.GetString("auth.bitbucket_token")),
+	}
+	// Backward compat: populate Auth.GitHubToken from registries.github_token if auth.github_token not set
+	if cfg.Auth.GitHubToken == "" && cfg.Registries.GitHubToken != "" {
+		cfg.Auth.GitHubToken = cfg.Registries.GitHubToken
+	}
+	cfg.ConcurrencyConfig = DefaultConcurrency()
+	if v.IsSet("concurrency.registry_workers") {
+		cfg.ConcurrencyConfig.RegistryWorkers = v.GetInt("concurrency.registry_workers")
+	}
+	if v.IsSet("concurrency.git_clone_workers") {
+		cfg.ConcurrencyConfig.GitCloneWorkers = v.GetInt("concurrency.git_clone_workers")
+	}
+	if v.IsSet("concurrency.github_api_workers") {
+		cfg.ConcurrencyConfig.GitHubAPIWorkers = v.GetInt("concurrency.github_api_workers")
 	}
 	return cfg, nil
 }

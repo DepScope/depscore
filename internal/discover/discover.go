@@ -7,9 +7,71 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/depscope/depscope/internal/cache"
 	"github.com/depscope/depscope/internal/manifest"
 	"github.com/depscope/depscope/internal/registry"
 )
+
+// CacheDiscoverResult represents a project affected by a specific package version,
+// found via the CacheDB reverse-dependency index.
+type CacheDiscoverResult struct {
+	ProjectID    string
+	VersionKey   string
+	ChildVersion string // the matched version of the target package
+	EdgeType     string
+}
+
+// DiscoverFromCache queries the CacheDB for projects that depend on the given package.
+// Returns affected projects without needing to walk the filesystem.
+// For each dependent found via FindDependents, the child_version_constraint is checked
+// against the provided versionRange using ParseRange / Range.Contains.
+func DiscoverFromCache(db *cache.CacheDB, packageID string, versionRange string) ([]CacheDiscoverResult, error) {
+	rng, err := ParseRange(versionRange)
+	if err != nil {
+		return nil, fmt.Errorf("invalid version range %q: %w", versionRange, err)
+	}
+
+	deps, err := db.FindDependents(packageID)
+	if err != nil {
+		return nil, fmt.Errorf("querying dependents of %q: %w", packageID, err)
+	}
+
+	var results []CacheDiscoverResult
+	for _, dep := range deps {
+		// Extract the version string from the child_version_constraint.
+		// Typical formats: "ecosystem/name@1.2.3" or just "1.2.3".
+		childVer := extractVersion(dep.ChildVersionConstraint)
+		if childVer == "" {
+			continue
+		}
+
+		v, err := ParseVersion(childVer)
+		if err != nil {
+			continue // skip unparseable versions
+		}
+
+		if rng.Contains(v) {
+			results = append(results, CacheDiscoverResult{
+				ProjectID:    dep.ParentProjectID,
+				VersionKey:   dep.ParentVersionKey,
+				ChildVersion: childVer,
+				EdgeType:     dep.DepScope,
+			})
+		}
+	}
+
+	return results, nil
+}
+
+// extractVersion tries to extract a semver version string from a version key.
+// For keys like "npm/lodash@4.17.20", it returns "4.17.20".
+// For keys like "4.17.20", it returns as-is.
+func extractVersion(versionKey string) string {
+	if idx := strings.LastIndex(versionKey, "@"); idx >= 0 {
+		return versionKey[idx+1:]
+	}
+	return versionKey
+}
 
 // Run executes the full discover pipeline.
 func Run(cfg Config) (*DiscoverResult, error) {

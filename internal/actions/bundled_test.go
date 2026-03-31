@@ -78,12 +78,12 @@ func TestFetchBundledDepsJSAction(t *testing.T) {
 	mux.HandleFunc("/repos/myorg/myaction/contents/package.json", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, testBundledSHA, r.URL.Query().Get("ref"))
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, makeFileContentResponse(samplePackageJSON))
+		_, _ = fmt.Fprint(w, makeFileContentResponse(samplePackageJSON))
 	})
 	mux.HandleFunc("/repos/myorg/myaction/contents/package-lock.json", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, testBundledSHA, r.URL.Query().Get("ref"))
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, makeFileContentResponse(samplePackageLockJSON))
+		_, _ = fmt.Fprint(w, makeFileContentResponse(samplePackageLockJSON))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -121,7 +121,7 @@ func TestFetchBundledDepsJSActionNoLockfile(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/myorg/myaction/contents/package.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, makeFileContentResponse(samplePackageJSON))
+		_, _ = fmt.Fprint(w, makeFileContentResponse(samplePackageJSON))
 	})
 	mux.HandleFunc("/repos/myorg/myaction/contents/package-lock.json", func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
@@ -175,7 +175,7 @@ func TestFetchBundledDepsDockerActionWithDockerfile(t *testing.T) {
 	mux.HandleFunc("/repos/myorg/dockeraction/contents/Dockerfile", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, testBundledSHA, r.URL.Query().Get("ref"))
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, makeFileContentResponse(sampleDockerfile))
+		_, _ = fmt.Fprint(w, makeFileContentResponse(sampleDockerfile))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()

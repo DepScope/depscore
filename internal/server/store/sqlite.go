@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS graph_nodes (
     risk TEXT DEFAULT '',
     pinning TEXT DEFAULT '',
     metadata TEXT DEFAULT '{}',
+    project_id TEXT DEFAULT '',
+    version_key TEXT DEFAULT '',
     UNIQUE(scan_id, node_id)
 );
 
@@ -68,21 +70,25 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 
 	// Enable WAL mode for concurrent reads.
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("enable WAL: %w", err)
 	}
 
 	// Enable foreign keys.
 	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
 	}
 
 	// Create schema.
 	if _, err := db.Exec(schema); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
+
+	// Migrate: add new columns for existing databases (idempotent, errors ignored).
+	_, _ = db.Exec("ALTER TABLE graph_nodes ADD COLUMN project_id TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE graph_nodes ADD COLUMN version_key TEXT DEFAULT ''")
 
 	return &SQLiteStore{db: db}, nil
 }
@@ -205,7 +211,7 @@ func (s *SQLiteStore) List() []*ScanJob {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var jobs []*ScanJob
 	for rows.Next() {
@@ -249,7 +255,7 @@ func (s *SQLiteStore) SaveGraph(scanID string, nodes []GraphNode, edges []GraphE
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Delete existing graph data for this scan.
 	if _, err := tx.Exec(`DELETE FROM graph_edges WHERE scan_id = ?`, scanID); err != nil {
@@ -261,20 +267,20 @@ func (s *SQLiteStore) SaveGraph(scanID string, nodes []GraphNode, edges []GraphE
 
 	// Insert nodes.
 	nodeStmt, err := tx.Prepare(
-		`INSERT INTO graph_nodes (scan_id, node_id, type, name, version, ref, score, risk, pinning, metadata)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO graph_nodes (scan_id, node_id, type, name, version, ref, score, risk, pinning, metadata, project_id, version_key)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	)
 	if err != nil {
 		return fmt.Errorf("prepare node insert: %w", err)
 	}
-	defer nodeStmt.Close()
+	defer func() { _ = nodeStmt.Close() }()
 
 	for _, n := range nodes {
 		metaJSON, err := json.Marshal(n.Metadata)
 		if err != nil {
 			metaJSON = []byte("{}")
 		}
-		if _, err := nodeStmt.Exec(scanID, n.NodeID, n.Type, n.Name, n.Version, n.Ref, n.Score, n.Risk, n.Pinning, string(metaJSON)); err != nil {
+		if _, err := nodeStmt.Exec(scanID, n.NodeID, n.Type, n.Name, n.Version, n.Ref, n.Score, n.Risk, n.Pinning, string(metaJSON), n.ProjectID, n.VersionKey); err != nil {
 			return fmt.Errorf("insert node %s: %w", n.NodeID, err)
 		}
 	}
@@ -286,7 +292,7 @@ func (s *SQLiteStore) SaveGraph(scanID string, nodes []GraphNode, edges []GraphE
 	if err != nil {
 		return fmt.Errorf("prepare edge insert: %w", err)
 	}
-	defer edgeStmt.Close()
+	defer func() { _ = edgeStmt.Close() }()
 
 	for _, e := range edges {
 		if _, err := edgeStmt.Exec(scanID, e.From, e.To, e.Type, e.Depth); err != nil {
@@ -302,20 +308,20 @@ func (s *SQLiteStore) SaveGraph(scanID string, nodes []GraphNode, edges []GraphE
 func (s *SQLiteStore) LoadGraph(scanID string) ([]GraphNode, []GraphEdge, error) {
 	// Load nodes.
 	nodeRows, err := s.db.Query(
-		`SELECT node_id, type, name, version, ref, score, risk, pinning, metadata
+		`SELECT node_id, type, name, version, ref, score, risk, pinning, metadata, project_id, version_key
 		 FROM graph_nodes WHERE scan_id = ? ORDER BY id`,
 		scanID,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query nodes: %w", err)
 	}
-	defer nodeRows.Close()
+	defer func() { _ = nodeRows.Close() }()
 
 	var nodes []GraphNode
 	for nodeRows.Next() {
 		var n GraphNode
 		var metaJSON string
-		if err := nodeRows.Scan(&n.NodeID, &n.Type, &n.Name, &n.Version, &n.Ref, &n.Score, &n.Risk, &n.Pinning, &metaJSON); err != nil {
+		if err := nodeRows.Scan(&n.NodeID, &n.Type, &n.Name, &n.Version, &n.Ref, &n.Score, &n.Risk, &n.Pinning, &metaJSON, &n.ProjectID, &n.VersionKey); err != nil {
 			return nil, nil, fmt.Errorf("scan node row: %w", err)
 		}
 		if metaJSON != "" && metaJSON != "{}" {
@@ -340,7 +346,7 @@ func (s *SQLiteStore) LoadGraph(scanID string) ([]GraphNode, []GraphEdge, error)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query edges: %w", err)
 	}
-	defer edgeRows.Close()
+	defer func() { _ = edgeRows.Close() }()
 
 	var edges []GraphEdge
 	for edgeRows.Next() {

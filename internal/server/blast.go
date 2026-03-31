@@ -65,15 +65,17 @@ func rebuildGraph(nodes []store.GraphNode, edges []store.GraphEdge) *graph.Graph
 	g := graph.New()
 	for _, n := range nodes {
 		g.AddNode(&graph.Node{
-			ID:       n.NodeID,
-			Type:     parseNodeType(n.Type),
-			Name:     n.Name,
-			Version:  n.Version,
-			Ref:      n.Ref,
-			Score:    n.Score,
-			Risk:     core.RiskLevel(n.Risk),
-			Pinning:  parsePinning(n.Pinning),
-			Metadata: n.Metadata,
+			ID:         n.NodeID,
+			Type:       parseNodeType(n.Type),
+			Name:       n.Name,
+			Version:    n.Version,
+			Ref:        n.Ref,
+			Score:      n.Score,
+			Risk:       core.RiskLevel(n.Risk),
+			Pinning:    parsePinning(n.Pinning),
+			Metadata:   n.Metadata,
+			ProjectID:  n.ProjectID,
+			VersionKey: n.VersionKey,
 		})
 	}
 	for _, e := range edges {
@@ -102,6 +104,16 @@ func parseNodeType(s string) graph.NodeType {
 		return graph.NodeDockerImage
 	case "script_download":
 		return graph.NodeScriptDownload
+	case "precommit_hook":
+		return graph.NodePrecommitHook
+	case "terraform_module":
+		return graph.NodeTerraformModule
+	case "git_submodule":
+		return graph.NodeGitSubmodule
+	case "dev_tool":
+		return graph.NodeDevTool
+	case "build_tool":
+		return graph.NodeBuildTool
 	default:
 		return graph.NodePackage
 	}
@@ -126,6 +138,16 @@ func parseEdgeType(s string) graph.EdgeType {
 		return graph.EdgePullsImage
 	case "downloads":
 		return graph.EdgeDownloads
+	case "uses_hook":
+		return graph.EdgeUsesHook
+	case "uses_module":
+		return graph.EdgeUsesModule
+	case "includes_submodule":
+		return graph.EdgeIncludesSubmodule
+	case "uses_tool":
+		return graph.EdgeUsesTool
+	case "built_with":
+		return graph.EdgeBuiltWith
 	default:
 		return graph.EdgeDependsOn
 	}
@@ -140,6 +162,8 @@ func parsePinning(s string) graph.PinningQuality {
 		return graph.PinningDigest
 	case "exact_version":
 		return graph.PinningExactVersion
+	case "semver_range":
+		return graph.PinningSemverRange
 	case "major_tag":
 		return graph.PinningMajorTag
 	case "branch":

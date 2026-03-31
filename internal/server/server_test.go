@@ -35,7 +35,7 @@ func TestLandingPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -55,7 +55,7 @@ func TestLandingPageContainsDepscope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rawBody, _ := io.ReadAll(resp.Body)
 	body := string(rawBody)
@@ -88,7 +88,7 @@ func TestSubmitScanRedirects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /scan: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("expected 303, got %d", resp.StatusCode)
@@ -121,7 +121,7 @@ func TestSubmitScanInvalidURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /scan: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("expected 400 for invalid URL, got %d", resp.StatusCode)
@@ -146,7 +146,7 @@ func TestScanStatusJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /api/scan/%s: %v", jobID, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -179,7 +179,7 @@ func TestScanPageNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /scan/nonexistent: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", resp.StatusCode)
@@ -204,7 +204,7 @@ func TestScanPageQueued(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /scan/%s: %v", jobID, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -242,7 +242,7 @@ func TestScanPageFailed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /scan/%s: %v", jobID, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -299,7 +299,7 @@ func TestPackageDetail(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -337,7 +337,7 @@ func TestPackageDetail(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("expected 404, got %d", resp.StatusCode)
@@ -371,7 +371,7 @@ func TestPackageDetail(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -395,7 +395,7 @@ func TestStaticAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /static/style.css: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -470,7 +470,7 @@ func TestGraphAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
@@ -514,7 +514,7 @@ func TestGraphAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		type graphResp struct {
 			Nodes []map[string]any `json:"nodes"`
@@ -563,7 +563,7 @@ func TestGraphAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("expected 404, got %d", resp.StatusCode)
 		}
@@ -587,7 +587,7 @@ func TestNodeDetailAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
@@ -649,7 +649,7 @@ func TestNodeDetailAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("expected 404, got %d", resp.StatusCode)
 		}
@@ -660,7 +660,7 @@ func TestNodeDetailAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("expected 404, got %d", resp.StatusCode)
 		}
