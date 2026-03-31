@@ -471,3 +471,58 @@ func (c *CacheDB) IndexStats(rootPath string) (*IndexStatus, error) {
 
 	return s, nil
 }
+
+// ---------------------------------------------------------------------------
+// Index Search (for compromised package lookups)
+// ---------------------------------------------------------------------------
+
+// IndexSearchResult represents a manifest-package match from the index.
+type IndexSearchResult struct {
+	ManifestRelPath string
+	ManifestAbsPath string
+	Ecosystem       string
+	ProjectID       string
+	VersionKey      string
+	Version         string // extracted from version_key
+	Constraint      string
+	DepScope        string
+}
+
+// SearchIndexByPackageName returns all indexed manifest-package links for a given
+// package name (project_id). This is the core query for --from-index compromised scans.
+func (c *CacheDB) SearchIndexByPackageName(projectID string) ([]IndexSearchResult, error) {
+	rows, err := c.db.Query(
+		`SELECT im.rel_path, im.abs_path, im.ecosystem, mp.project_id, mp.version_key, mp.constraint_, mp.dep_scope
+		 FROM manifest_packages mp
+		 JOIN index_manifests im ON mp.manifest_id = im.id
+		 WHERE mp.project_id = ?
+		 ORDER BY im.rel_path`, projectID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []IndexSearchResult
+	for rows.Next() {
+		var r IndexSearchResult
+		if err := rows.Scan(&r.ManifestRelPath, &r.ManifestAbsPath, &r.Ecosystem, &r.ProjectID, &r.VersionKey, &r.Constraint, &r.DepScope); err != nil {
+			return nil, err
+		}
+		// Extract version from version_key: "npm/axios@1.14.1" → "1.14.1"
+		if idx := lastIndexOfByte(r.VersionKey, '@'); idx >= 0 {
+			r.Version = r.VersionKey[idx+1:]
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
+func lastIndexOfByte(s string, b byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == b {
+			return i
+		}
+	}
+	return -1
+}
