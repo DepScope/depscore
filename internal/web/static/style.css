@@ -74,6 +74,17 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 }
 .nav-logo:hover { text-decoration: none; }
 
+.nav-link {
+  margin-left: 24px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+.nav-link:hover {
+  color: var(--text);
+  text-decoration: none;
+}
+
 /* ── Main ── */
 .main {
   margin-top: var(--nav-height);
