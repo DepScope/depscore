@@ -52,25 +52,15 @@ type indexedPackage struct {
 // ---------------------------------------------------------------------------
 
 // knownManifests maps exact base filenames to their ecosystem.
-// knownManifests maps filenames to ecosystems. Only files that produce
-// parseable packages are included — lockfiles without their primary manifest,
-// config files, build files, terraform, and action workflows are excluded
-// because they yield 0 packages at local scope and clutter the index.
+// knownManifests maps primary manifest filenames to ecosystems.
+// Lockfiles are loaded as companions when their primary manifest is parsed.
 var knownManifests = map[string]string{
-	// npm (primary manifests — lockfiles are loaded as companions)
-	"package.json": "npm",
-	// go
-	"go.mod": "go",
-	// rust
-	"Cargo.toml": "rust",
-	"Cargo.lock": "rust",
-	// python
-	"pyproject.toml":   "python",
-	"requirements.txt": "python",
-	"poetry.lock":      "python",
-	"uv.lock":          "python",
-	// php
-	"composer.json": "php",
+	"package.json":    "npm",    // lockfiles: package-lock.json, pnpm-lock.yaml
+	"go.mod":          "go",     // companion: go.sum
+	"Cargo.toml":      "rust",   // companion: Cargo.lock
+	"pyproject.toml":  "python", // companions: poetry.lock, uv.lock
+	"requirements.txt": "python", // standalone pip manifest
+	"composer.json":   "php",    // companion: composer.lock
 }
 
 // detectManifestEcosystem returns the ecosystem for a known manifest file,
@@ -238,6 +228,10 @@ func companionsFor(eco, primaryKey string) []string {
 	case "npm":
 		if primaryKey == "package.json" {
 			return []string{"package-lock.json", "pnpm-lock.yaml", "bun.lock"}
+		}
+	case "python":
+		if primaryKey == "pyproject.toml" {
+			return []string{"poetry.lock", "uv.lock"}
 		}
 	case "rust":
 		if primaryKey == "Cargo.toml" {

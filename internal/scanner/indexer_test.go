@@ -30,14 +30,14 @@ func TestDetectManifestEcosystem(t *testing.T) {
 		// go
 		{"go.mod", "go", true},
 		{"service/go.mod", "go", true},
-		// rust
+		// rust (Cargo.lock is a companion to Cargo.toml)
 		{"Cargo.toml", "rust", true},
-		{"Cargo.lock", "rust", true},
-		// python
+		{"Cargo.lock", "", false},
+		// python (poetry.lock, uv.lock are companions to pyproject.toml)
 		{"pyproject.toml", "python", true},
 		{"requirements.txt", "python", true},
-		{"poetry.lock", "python", true},
-		{"uv.lock", "python", true},
+		{"poetry.lock", "", false},
+		{"uv.lock", "", false},
 		// php
 		{"composer.json", "php", true},
 		// NOT indexed (no packages at local scope)
