@@ -113,6 +113,9 @@ func (s *Server) handleIndexSearch(w http.ResponseWriter, r *http.Request) {
 		DepScope     string `json:"dep_scope"`
 		Compromised  bool   `json:"compromised"`
 		MatchedRule  string `json:"matched_rule,omitempty"`
+		Score        int    `json:"score"`
+		Risk         string `json:"risk"`
+		CVECount     int    `json:"cve_count"`
 	}
 
 	var results []resultEntry
@@ -140,7 +143,7 @@ func (s *Server) handleIndexSearch(w http.ResponseWriter, r *http.Request) {
 				for _, h := range hits {
 					for _, rng := range ranges {
 						if scanner.SemverSatisfies(rng, h.Version) {
-							results = append(results, resultEntry{
+							entry := resultEntry{
 								ManifestPath: h.ManifestRelPath,
 								ManifestID:   0,
 								Ecosystem:    h.Ecosystem,
@@ -150,7 +153,22 @@ func (s *Server) handleIndexSearch(w http.ResponseWriter, r *http.Request) {
 								DepScope:     h.DepScope,
 								Compromised:  true,
 								MatchedRule:  name + "@" + rng,
-							})
+							}
+							// Try to get enrichment data.
+							ver, _ := db.GetVersion(h.ProjectID, h.VersionKey)
+							if ver != nil && ver.Metadata != "" {
+								var em struct {
+									Score    int    `json:"score"`
+									Risk     string `json:"risk"`
+									CVECount int    `json:"cve_count"`
+								}
+								if json.Unmarshal([]byte(ver.Metadata), &em) == nil {
+									entry.Score = em.Score
+									entry.Risk = em.Risk
+									entry.CVECount = em.CVECount
+								}
+							}
+							results = append(results, entry)
 							break
 						}
 					}
@@ -167,14 +185,29 @@ func (s *Server) handleIndexSearch(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			for _, h := range hits {
-				results = append(results, resultEntry{
+				entry := resultEntry{
 					ManifestPath: h.ManifestRelPath,
 					Ecosystem:    h.Ecosystem,
 					ProjectID:    h.ProjectID,
 					Version:      h.Version,
 					Constraint:   h.Constraint,
 					DepScope:     h.DepScope,
-				})
+				}
+				// Try to get enrichment data.
+				ver, _ := db.GetVersion(h.ProjectID, h.VersionKey)
+				if ver != nil && ver.Metadata != "" {
+					var em struct {
+						Score    int    `json:"score"`
+						Risk     string `json:"risk"`
+						CVECount int    `json:"cve_count"`
+					}
+					if json.Unmarshal([]byte(ver.Metadata), &em) == nil {
+						entry.Score = em.Score
+						entry.Risk = em.Risk
+						entry.CVECount = em.CVECount
+					}
+				}
+				results = append(results, entry)
 			}
 		}
 	}

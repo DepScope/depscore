@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -30,6 +31,8 @@ type indexSearchResult struct {
 	Ecosystem string
 	Version   string
 	Manifests int
+	Score     int
+	Risk      string
 }
 
 type indexSearchDetail struct {
@@ -182,13 +185,27 @@ func (m *IndexSearchModel) doSearch() {
 				continue
 			}
 			seen[rid] = true
-			results = append(results, indexSearchResult{
+			r := indexSearchResult{
 				ProjectID: eco + "/" + query,
 				Name:      query,
 				Ecosystem: eco,
 				Version:   vg.version,
 				Manifests: vg.manifests,
-			})
+			}
+			// Try to get enrichment data from version metadata.
+			versionKey := eco + "/" + query + "@" + vg.version
+			ver, _ := m.db.GetVersion(eco+"/"+query, versionKey)
+			if ver != nil && ver.Metadata != "" {
+				var em struct {
+					Score int    `json:"score"`
+					Risk  string `json:"risk"`
+				}
+				if json.Unmarshal([]byte(ver.Metadata), &em) == nil {
+					r.Score = em.Score
+					r.Risk = em.Risk
+				}
+			}
+			results = append(results, r)
 		}
 	}
 
@@ -348,7 +365,11 @@ func (m IndexSearchModel) renderIndexSearch() string {
 		if ver == "" {
 			ver = "-"
 		}
-		line := fmt.Sprintf("  [%s] %-30s %-15s  %d manifest(s)", eco, r.Name, ver, r.Manifests)
+		scoreInfo := ""
+		if r.Risk != "" {
+			scoreInfo = fmt.Sprintf("  score:%d %s", r.Score, r.Risk)
+		}
+		line := fmt.Sprintf("  [%s] %-30s %-15s  %d manifest(s)%s", eco, r.Name, ver, r.Manifests, scoreInfo)
 
 		if i == m.cursor {
 			line = styleSelected.Render(padRight(line, m.width))
