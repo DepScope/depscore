@@ -24,15 +24,11 @@ func TestDetectManifestEcosystem(t *testing.T) {
 		eco     string
 		ok      bool
 	}{
-		// npm
+		// npm (only package.json — lockfiles are companions)
 		{"package.json", "npm", true},
-		{"package-lock.json", "npm", true},
-		{"pnpm-lock.yaml", "npm", true},
-		{"bun.lock", "npm", true},
 		{"webapp/package.json", "npm", true},
 		// go
 		{"go.mod", "go", true},
-		{"go.sum", "go", true},
 		{"service/go.mod", "go", true},
 		// rust
 		{"Cargo.toml", "rust", true},
@@ -44,23 +40,18 @@ func TestDetectManifestEcosystem(t *testing.T) {
 		{"uv.lock", "python", true},
 		// php
 		{"composer.json", "php", true},
-		{"composer.lock", "php", true},
-		// config
-		{".pre-commit-config.yaml", "config", true},
-		{".gitmodules", "config", true},
-		{".tool-versions", "config", true},
-		{".mise.toml", "config", true},
-		// build
-		{"Makefile", "build", true},
-		{"Taskfile.yml", "build", true},
-		{"Taskfile.yaml", "build", true},
-		{"justfile", "build", true},
-		// terraform
-		{"infra/main.tf", "terraform", true},
-		{"modules/vpc.tf", "terraform", true},
-		// actions
-		{".github/workflows/ci.yml", "actions", true},
-		{".github/workflows/deploy.yml", "actions", true},
+		// NOT indexed (no packages at local scope)
+		{"package-lock.json", "", false},     // lockfile without package.json
+		{"pnpm-lock.yaml", "", false},        // lockfile without package.json
+		{"composer.lock", "", false},          // lockfile without composer.json
+		{"go.sum", "", false},                 // companion to go.mod
+		{".pre-commit-config.yaml", "", false},
+		{".gitmodules", "", false},
+		{"Makefile", "", false},
+		{"Taskfile.yml", "", false},
+		{"justfile", "", false},
+		{"infra/main.tf", "", false},          // terraform — no packages at local scope
+		{".github/workflows/ci.yml", "", false}, // actions — no packages at local scope
 		// not a manifest
 		{"README.md", "", false},
 		{"src/main.go", "", false},
@@ -140,11 +131,9 @@ require (
 flask==3.0.3
 `))
 
-	// config files (no packages extracted)
+	// These files exist on disk but should NOT be indexed (no packages at local scope)
 	writeFile(t, root, "Makefile", []byte("all:\n\techo hello\n"))
 	writeFile(t, root, ".pre-commit-config.yaml", []byte("repos: []\n"))
-
-	// terraform file (no packages for local scope)
 	writeFile(t, root, "infra/main.tf", []byte(`resource "aws_s3_bucket" "b" {}`))
 
 	// .git dir (should be skipped entirely)
@@ -169,8 +158,8 @@ func TestRunIndex(t *testing.T) {
 
 	output := buf.String()
 
-	// Should find at least: package.json, node_modules/axios/package.json,
-	// go.mod, requirements.txt, Makefile, .pre-commit-config.yaml, main.tf
+	// Should find: package.json, node_modules/axios/package.json,
+	// go.mod, requirements.txt (Makefile, .pre-commit-config.yaml, main.tf are excluded)
 	assert.GreaterOrEqual(t, result.ManifestsFound, 4, "should find at least 4 manifests")
 
 	// npm project (2 deps), node_modules axios (1), go project (2), python (2) = 7

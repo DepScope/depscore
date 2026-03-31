@@ -52,15 +52,15 @@ type indexedPackage struct {
 // ---------------------------------------------------------------------------
 
 // knownManifests maps exact base filenames to their ecosystem.
+// knownManifests maps filenames to ecosystems. Only files that produce
+// parseable packages are included — lockfiles without their primary manifest,
+// config files, build files, terraform, and action workflows are excluded
+// because they yield 0 packages at local scope and clutter the index.
 var knownManifests = map[string]string{
-	// npm
-	"package.json":      "npm",
-	"package-lock.json": "npm",
-	"pnpm-lock.yaml":    "npm",
-	"bun.lock":          "npm",
+	// npm (primary manifests — lockfiles are loaded as companions)
+	"package.json": "npm",
 	// go
 	"go.mod": "go",
-	"go.sum": "go",
 	// rust
 	"Cargo.toml": "rust",
 	"Cargo.lock": "rust",
@@ -71,17 +71,6 @@ var knownManifests = map[string]string{
 	"uv.lock":          "python",
 	// php
 	"composer.json": "php",
-	"composer.lock": "php",
-	// config
-	".pre-commit-config.yaml": "config",
-	".gitmodules":              "config",
-	".tool-versions":           "config",
-	".mise.toml":               "config",
-	// build
-	"Makefile":      "build",
-	"Taskfile.yml":  "build",
-	"Taskfile.yaml": "build",
-	"justfile":      "build",
 }
 
 // detectManifestEcosystem returns the ecosystem for a known manifest file,
@@ -105,17 +94,6 @@ func detectManifestEcosystem(relPath string) (string, bool) {
 	// Exact filename match.
 	if eco, ok := knownManifests[base]; ok {
 		return eco, true
-	}
-
-	// *.tf → terraform
-	if strings.HasSuffix(base, ".tf") {
-		return "terraform", true
-	}
-
-	// .github/workflows/*.yml → actions
-	normalized := filepath.ToSlash(relPath)
-	if strings.Contains(normalized, ".github/workflows/") && strings.HasSuffix(base, ".yml") {
-		return "actions", true
 	}
 
 	return "", false
