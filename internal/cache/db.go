@@ -53,6 +53,17 @@ type CacheStatus struct {
 	RefResolutions int
 }
 
+// CompromisedFinding records a discovered compromised package in a manifest.
+type CompromisedFinding struct {
+	ScanID       string
+	ManifestPath string
+	PackageName  string
+	Version      string
+	Constraint   string
+	Relation     string // "direct" or "indirect"
+	ParentChain  string // for indirect: "parentA -> parentB -> pkg"
+}
+
 // CacheDB is a SQLite-backed structured cache for dependency resolution results.
 type CacheDB struct {
 	db *sql.DB
@@ -95,6 +106,11 @@ func NewCacheDB(dsn string) (*CacheDB, error) {
 // Close closes the underlying database connection.
 func (c *CacheDB) Close() error {
 	return c.db.Close()
+}
+
+// DB returns the underlying *sql.DB for advanced queries.
+func (c *CacheDB) DB() *sql.DB {
+	return c.db
 }
 
 func (c *CacheDB) migrate() error {
@@ -142,9 +158,24 @@ func (c *CacheDB) migrate() error {
 		fetched_at DATETIME NOT NULL,
 		PRIMARY KEY (ecosystem, name, version)
 	);
+
+	CREATE TABLE IF NOT EXISTS compromised_findings (
+		scan_id       TEXT NOT NULL,
+		manifest_path TEXT NOT NULL,
+		package_name  TEXT NOT NULL,
+		version       TEXT NOT NULL,
+		constraint_   TEXT NOT NULL DEFAULT '',
+		relation      TEXT NOT NULL,
+		parent_chain  TEXT NOT NULL DEFAULT '',
+		found_at      DATETIME NOT NULL,
+		UNIQUE(scan_id, manifest_path, package_name, version)
+	);
 	`
 	_, err := c.db.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+	return c.migrateIndex()
 }
 
 // ---------------------------------------------------------------------------
@@ -450,4 +481,42 @@ func (c *CacheDB) Status() (*CacheStatus, error) {
 		}
 	}
 	return s, nil
+}
+
+// ---------------------------------------------------------------------------
+// Compromised Findings
+// ---------------------------------------------------------------------------
+
+// AddCompromisedFinding inserts a compromised finding. Duplicates (same scan,
+// manifest, package, version) are silently ignored via INSERT OR IGNORE.
+func (c *CacheDB) AddCompromisedFinding(f *CompromisedFinding) error {
+	_, err := c.db.Exec(
+		`INSERT OR IGNORE INTO compromised_findings
+		   (scan_id, manifest_path, package_name, version, constraint_, relation, parent_chain, found_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		f.ScanID, f.ManifestPath, f.PackageName, f.Version, f.Constraint, f.Relation, f.ParentChain, time.Now(),
+	)
+	return err
+}
+
+// GetCompromisedFindings returns all compromised findings for a given scan ID.
+func (c *CacheDB) GetCompromisedFindings(scanID string) ([]CompromisedFinding, error) {
+	rows, err := c.db.Query(
+		`SELECT scan_id, manifest_path, package_name, version, constraint_, relation, parent_chain
+		 FROM compromised_findings WHERE scan_id = ?`, scanID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var findings []CompromisedFinding
+	for rows.Next() {
+		var f CompromisedFinding
+		if err := rows.Scan(&f.ScanID, &f.ManifestPath, &f.PackageName, &f.Version, &f.Constraint, &f.Relation, &f.ParentChain); err != nil {
+			return nil, err
+		}
+		findings = append(findings, f)
+	}
+	return findings, rows.Err()
 }
