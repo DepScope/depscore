@@ -235,12 +235,20 @@ func ScanCompromisedFromIndex(ctx context.Context, targets []CompromisedTarget, 
 						Relation:     relation,
 					}
 
+					// Trace dependency path from root to this package.
+					path := traceDependencyPath(cacheDB, projectID)
+					if path != "" {
+						f.ParentChain = path
+					}
+
 					tag := "DIRECT  "
 					if relation == "indirect" {
 						tag = "INDIRECT"
 					}
 					detail := ""
-					if r.Constraint != "" {
+					if f.ParentChain != "" {
+						detail = fmt.Sprintf("  (path: %s)", f.ParentChain)
+					} else if r.Constraint != "" {
 						detail = fmt.Sprintf("  (constraint: %s)", r.Constraint)
 					}
 					_, _ = fmt.Fprintf(w, "%s  %s  %s@%s%s\n", tag, f.ManifestPath, f.PackageName, f.Version, detail)
@@ -253,6 +261,7 @@ func ScanCompromisedFromIndex(ctx context.Context, targets []CompromisedTarget, 
 						Version:      f.Version,
 						Constraint:   f.Constraint,
 						Relation:     f.Relation,
+						ParentChain:  f.ParentChain,
 					})
 
 					allFindings = append(allFindings, f)
@@ -266,6 +275,45 @@ func ScanCompromisedFromIndex(ctx context.Context, targets []CompromisedTarget, 
 	_, _ = fmt.Fprintf(w, "\nCompromised findings: %d (from index, scan_id: %s)\n", len(cFindings), scanID)
 
 	return allFindings, nil
+}
+
+// traceDependencyPath walks backwards from the target project to a root via
+// the version_dependencies table and returns a human-readable chain like
+// "__root__ -> axios -> follow-redirects".
+func traceDependencyPath(db *cache.CacheDB, targetProjectID string) string {
+	visited := make(map[string]bool)
+	current := targetProjectID
+	var chain []string
+	chain = append(chain, current)
+
+	for i := 0; i < 20; i++ { // max depth guard
+		parents, err := db.FindDependents(current)
+		if err != nil || len(parents) == 0 {
+			break
+		}
+		parent := parents[0].ParentProjectID
+		if visited[parent] {
+			break
+		}
+		visited[parent] = true
+		chain = append([]string{parent}, chain...)
+		current = parent
+	}
+
+	if len(chain) <= 1 {
+		return ""
+	}
+
+	// Strip ecosystem prefix for readability.
+	var parts []string
+	for _, c := range chain {
+		name := c
+		if idx := strings.Index(c, "/"); idx >= 0 {
+			name = c[idx+1:]
+		}
+		parts = append(parts, name)
+	}
+	return strings.Join(parts, " -> ")
 }
 
 // manifestInfo holds parsed data for one package.json + its lockfile.

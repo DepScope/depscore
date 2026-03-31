@@ -184,6 +184,7 @@ func runIndexStatus(cmd *cobra.Command, args []string) error {
 
 		fmt.Printf("  Manifests:   %d\n", stats.ManifestCount)
 		fmt.Printf("  Packages:    %d (unique)\n", stats.PackageCount)
+		fmt.Printf("  Dependencies: %d (edges)\n", stats.DependencyCount)
 
 		if len(stats.EcosystemCounts) > 0 {
 			fmt.Printf("  Ecosystems:\n")
@@ -247,9 +248,49 @@ func runIndexSearch(cmd *cobra.Command, args []string) error {
 	if found == 0 {
 		fmt.Printf("No results for %q in the index.\n", query)
 		fmt.Println("Make sure you've run 'depscope index <path>' first.")
-	} else {
-		fmt.Printf("\n%d result(s)\n", found)
+		return nil
 	}
+
+	fmt.Printf("\n%d result(s)\n", found)
+
+	// Show dependency edges for the first matching ecosystem.
+	for _, eco := range []string{"npm", "python", "go", "rust", "php"} {
+		projectID := eco + "/" + query
+
+		// "Depends on" — what this package depends on.
+		results, err := db.SearchIndexByPackageName(projectID)
+		if err != nil || len(results) == 0 {
+			continue
+		}
+		// Use the first version found for the dependency lookup.
+		versionKey := results[0].VersionKey
+		children, err := db.GetVersionDependencies(projectID, versionKey)
+		if err == nil && len(children) > 0 {
+			fmt.Printf("\nDependencies of %s:\n", versionKey)
+			for _, c := range children {
+				childName := c.ChildProjectID
+				if idx := strings.Index(childName, "/"); idx >= 0 {
+					childName = childName[idx+1:]
+				}
+				fmt.Printf("  → %-20s (%s)\n", childName, c.ChildVersionConstraint)
+			}
+		}
+
+		// "Depended on by" — what depends on this package.
+		parents, err := db.FindDependents(projectID)
+		if err == nil && len(parents) > 0 {
+			fmt.Printf("\nDepended on by:\n")
+			for _, p := range parents {
+				parentName := p.ParentProjectID
+				if idx := strings.Index(parentName, "/"); idx >= 0 {
+					parentName = parentName[idx+1:]
+				}
+				fmt.Printf("  ← %-20s (%s)\n", parentName, p.ChildVersionConstraint)
+			}
+		}
+		break
+	}
+
 	return nil
 }
 

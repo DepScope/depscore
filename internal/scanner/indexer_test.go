@@ -431,6 +431,89 @@ func TestRunIndexWithNpmDeps(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// extractPoetryDeps
+// ---------------------------------------------------------------------------
+
+func TestExtractPoetryDeps(t *testing.T) {
+	dir := t.TempDir()
+	poetryLock := `[[package]]
+name = "requests"
+version = "2.31.0"
+
+[package.dependencies]
+urllib3 = ">=1.21.1,<3"
+certifi = ">=2017.4.17"
+
+[[package]]
+name = "urllib3"
+version = "2.2.1"
+
+[[package]]
+name = "certifi"
+version = "2024.2.2"
+`
+	writeFile(t, dir, "poetry.lock", []byte(poetryLock))
+
+	deps, pkgs := extractPoetryDeps(dir)
+
+	assert.Len(t, pkgs, 3)
+	assert.Len(t, deps, 2)
+
+	type edge struct{ parent, child string }
+	edgeSet := map[edge]string{}
+	for _, d := range deps {
+		edgeSet[edge{d.ParentProjectID, d.ChildProjectID}] = d.ChildConstraint
+	}
+
+	assert.Contains(t, edgeSet, edge{"python/requests", "python/urllib3"})
+	assert.Contains(t, edgeSet, edge{"python/requests", "python/certifi"})
+	assert.Equal(t, ">=1.21.1,<3", edgeSet[edge{"python/requests", "python/urllib3"}])
+}
+
+func TestExtractPoetryDeps_TableDeps(t *testing.T) {
+	dir := t.TempDir()
+	poetryLock := `[[package]]
+name = "flask"
+version = "3.0.0"
+
+[package.dependencies]
+werkzeug = {version = ">=3.0.0", optional = false}
+jinja2 = {version = ">=3.1.2"}
+
+[[package]]
+name = "werkzeug"
+version = "3.0.1"
+
+[[package]]
+name = "jinja2"
+version = "3.1.3"
+`
+	writeFile(t, dir, "poetry.lock", []byte(poetryLock))
+
+	deps, pkgs := extractPoetryDeps(dir)
+	assert.Len(t, pkgs, 3)
+	assert.Len(t, deps, 2)
+
+	type edge struct{ parent, child string }
+	edgeSet := map[edge]string{}
+	for _, d := range deps {
+		edgeSet[edge{d.ParentProjectID, d.ChildProjectID}] = d.ChildConstraint
+	}
+
+	assert.Contains(t, edgeSet, edge{"python/flask", "python/werkzeug"})
+	assert.Contains(t, edgeSet, edge{"python/flask", "python/jinja2"})
+	assert.Equal(t, ">=3.0.0", edgeSet[edge{"python/flask", "python/werkzeug"}])
+	assert.Equal(t, ">=3.1.2", edgeSet[edge{"python/flask", "python/jinja2"}])
+}
+
+func TestExtractPoetryDeps_NoLockfile(t *testing.T) {
+	dir := t.TempDir()
+	deps, pkgs := extractPoetryDeps(dir)
+	assert.Nil(t, deps)
+	assert.Nil(t, pkgs)
+}
+
 func TestRunIndexForce(t *testing.T) {
 	root := buildFixtureTree(t)
 

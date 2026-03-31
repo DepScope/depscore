@@ -51,6 +51,7 @@ type IndexRun struct {
 type IndexStatus struct {
 	ManifestCount   int
 	PackageCount    int
+	DependencyCount int // number of lockfile dependency edges
 	EcosystemCounts map[string]int
 	TopPackages     []PackageFrequency
 	LastRun         *IndexRun
@@ -412,6 +413,13 @@ func (c *CacheDB) IndexStats(rootPath string) (*IndexStatus, error) {
 		 JOIN index_manifests im ON mp.manifest_id = im.id
 		 WHERE im.root_path = ?`, rootPath,
 	).Scan(&s.PackageCount); err != nil {
+		return nil, err
+	}
+
+	// Dependency edge count (lockfile edges)
+	if err := c.db.QueryRow(
+		`SELECT COUNT(*) FROM version_dependencies WHERE dep_scope = 'lockfile'`,
+	).Scan(&s.DependencyCount); err != nil {
 		return nil, err
 	}
 

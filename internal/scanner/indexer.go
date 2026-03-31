@@ -14,6 +14,7 @@ import (
 
 	"github.com/depscope/depscope/internal/cache"
 	"github.com/depscope/depscope/internal/manifest"
+	toml "github.com/pelletier/go-toml/v2"
 )
 
 // ---------------------------------------------------------------------------
@@ -270,6 +271,8 @@ func extractDependencyEdges(absPath, eco string) ([]indexedDep, []indexedPackage
 		return extractNpmDeps(dir)
 	case "rust":
 		return extractCargoDeps(dir)
+	case "python":
+		return extractPoetryDeps(dir)
 	default:
 		return nil, nil
 	}
@@ -456,6 +459,61 @@ func extractCargoDeps(dir string) ([]indexedDep, []indexedPackage) {
 				ParentVersionKey: parentVersionKey,
 				ChildProjectID:   "rust/" + childName,
 				ChildConstraint:  childConstraint,
+			})
+		}
+	}
+
+	return deps, pkgs
+}
+
+// extractPoetryDeps parses poetry.lock and returns dependency edges.
+// Poetry.lock uses [[package]] blocks with name, version, and [package.dependencies].
+func extractPoetryDeps(dir string) ([]indexedDep, []indexedPackage) {
+	lockData, err := os.ReadFile(filepath.Join(dir, "poetry.lock"))
+	if err != nil {
+		return nil, nil
+	}
+
+	var lock struct {
+		Package []struct {
+			Name         string                 `toml:"name"`
+			Version      string                 `toml:"version"`
+			Dependencies map[string]interface{} `toml:"dependencies"`
+		} `toml:"package"`
+	}
+	if err := toml.Unmarshal(lockData, &lock); err != nil {
+		return nil, nil
+	}
+
+	var deps []indexedDep
+	var pkgs []indexedPackage
+
+	for _, pkg := range lock.Package {
+		projectID := "python/" + pkg.Name
+		versionKey := projectID + "@" + pkg.Version
+		pkgs = append(pkgs, indexedPackage{
+			ProjectID:  projectID,
+			VersionKey: versionKey,
+			Name:       pkg.Name,
+			Constraint: pkg.Version,
+			DepScope:   "lockfile",
+		})
+
+		for depName, constraint := range pkg.Dependencies {
+			constraintStr := ""
+			switch v := constraint.(type) {
+			case string:
+				constraintStr = v
+			case map[string]interface{}:
+				if ver, ok := v["version"].(string); ok {
+					constraintStr = ver
+				}
+			}
+			deps = append(deps, indexedDep{
+				ParentProjectID:  projectID,
+				ParentVersionKey: versionKey,
+				ChildProjectID:   "python/" + depName,
+				ChildConstraint:  constraintStr,
 			})
 		}
 	}
