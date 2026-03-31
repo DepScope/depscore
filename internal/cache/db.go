@@ -108,6 +108,11 @@ func (c *CacheDB) Close() error {
 	return c.db.Close()
 }
 
+// DB returns the underlying *sql.DB for advanced queries.
+func (c *CacheDB) DB() *sql.DB {
+	return c.db
+}
+
 func (c *CacheDB) migrate() error {
 	const schema = `
 	CREATE TABLE IF NOT EXISTS projects (
@@ -167,7 +172,10 @@ func (c *CacheDB) migrate() error {
 	);
 	`
 	_, err := c.db.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+	return c.migrateIndex()
 }
 
 // ---------------------------------------------------------------------------
