@@ -34,6 +34,7 @@ func init() {
 	indexEnrichCmd.Flags().Bool("no-cve", false, "skip CVE lookups (faster, reputation-only)")
 
 	indexReportCmd.Flags().String("db", cache.DefaultDBPath(), "path to SQLite index database")
+	indexReportCmd.Flags().String("ecosystem", "", "filter by ecosystem (npm, go, python, rust, php)")
 
 	indexCmd.AddCommand(indexStatusCmd)
 	indexCmd.AddCommand(indexSearchCmd)
@@ -444,6 +445,8 @@ packages, CVE summary, ecosystem breakdown, and most exposed manifests.
 
 Examples:
   depscope index report
+  depscope index report --ecosystem npm
+  depscope index report --ecosystem go
   depscope index report --db /path/to/index.db`,
 	SilenceUsage: true,
 	RunE:         runIndexReport,
@@ -485,6 +488,7 @@ func runIndexExplore(cmd *cobra.Command, args []string) error {
 
 func runIndexReport(cmd *cobra.Command, args []string) error {
 	dbPath, _ := cmd.Flags().GetString("db")
+	ecoFilter, _ := cmd.Flags().GetString("ecosystem")
 
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return fmt.Errorf("no index database at %s — run 'depscope index' first", dbPath)
@@ -498,16 +502,33 @@ func runIndexReport(cmd *cobra.Command, args []string) error {
 
 	raw := db.DB()
 
+	// Build ecosystem filter args for parameterized queries.
+	var ecoArgs []any
+	if ecoFilter != "" {
+		ecoFilter = strings.ToLower(ecoFilter)
+		ecoArgs = []any{ecoFilter}
+	}
+
 	// ── Overview counts ─────────────────────────────────────────────────
 	var manifestCount, packageCount, enrichedCount int
 	var avgScore sql.NullFloat64
 
-	_ = raw.QueryRow(`SELECT COUNT(*) FROM index_manifests`).Scan(&manifestCount)
-	_ = raw.QueryRow(`SELECT COUNT(DISTINCT project_id) FROM manifest_packages`).Scan(&packageCount)
-	_ = raw.QueryRow(
-		`SELECT COUNT(*), AVG(json_extract(metadata, '$.score'))
-		 FROM project_versions WHERE metadata != '' AND metadata != '{}'`,
-	).Scan(&enrichedCount, &avgScore)
+	if ecoFilter != "" {
+		_ = raw.QueryRow(`SELECT COUNT(*) FROM index_manifests WHERE ecosystem = ?`, ecoFilter).Scan(&manifestCount)
+		_ = raw.QueryRow(`SELECT COUNT(DISTINCT mp.project_id) FROM manifest_packages mp JOIN projects p ON p.id = mp.project_id WHERE p.ecosystem = ?`, ecoFilter).Scan(&packageCount)
+		_ = raw.QueryRow(
+			`SELECT COUNT(*), AVG(json_extract(pv.metadata, '$.score'))
+			 FROM project_versions pv JOIN projects p ON p.id = pv.project_id
+			 WHERE pv.metadata != '' AND pv.metadata != '{}' AND p.ecosystem = ?`, ecoFilter,
+		).Scan(&enrichedCount, &avgScore)
+	} else {
+		_ = raw.QueryRow(`SELECT COUNT(*) FROM index_manifests`).Scan(&manifestCount)
+		_ = raw.QueryRow(`SELECT COUNT(DISTINCT project_id) FROM manifest_packages`).Scan(&packageCount)
+		_ = raw.QueryRow(
+			`SELECT COUNT(*), AVG(json_extract(metadata, '$.score'))
+			 FROM project_versions WHERE metadata != '' AND metadata != '{}'`,
+		).Scan(&enrichedCount, &avgScore)
+	}
 
 	if enrichedCount == 0 {
 		fmt.Println("No enriched packages found. Run 'depscope index enrich' first.")
@@ -521,6 +542,9 @@ func runIndexReport(cmd *cobra.Command, args []string) error {
 	fmt.Println("  DEPSCOPE SUPPLY CHAIN RISK REPORT")
 	fmt.Printf("  Generated: %s\n", now)
 	fmt.Printf("  Index: %s\n", dbPath)
+	if ecoFilter != "" {
+		fmt.Printf("  Filter: %s\n", ecoFilter)
+	}
 	fmt.Println(line)
 
 	enrichPct := 0
@@ -546,13 +570,19 @@ func runIndexReport(cmd *cobra.Command, args []string) error {
 		avgScore float64
 	}
 
-	riskRows, err := raw.Query(
-		`SELECT json_extract(metadata, '$.risk') as risk,
+	riskQuery := `SELECT json_extract(pv.metadata, '$.risk') as risk,
 		        COUNT(*) as cnt,
-		        AVG(json_extract(metadata, '$.score')) as avg_score
-		 FROM project_versions
-		 WHERE metadata != '' AND metadata != '{}'
-		 GROUP BY risk`)
+		        AVG(json_extract(pv.metadata, '$.score')) as avg_score
+		 FROM project_versions pv`
+	if ecoFilter != "" {
+		riskQuery += ` JOIN projects p ON p.id = pv.project_id
+		 WHERE pv.metadata != '' AND pv.metadata != '{}' AND p.ecosystem = ?
+		 GROUP BY risk`
+	} else {
+		riskQuery += ` WHERE pv.metadata != '' AND pv.metadata != '{}'
+		 GROUP BY risk`
+	}
+	riskRows, err := raw.Query(riskQuery, ecoArgs...)
 	if err != nil {
 		return fmt.Errorf("query risk distribution: %w", err)
 	}
@@ -609,11 +639,19 @@ func runIndexReport(cmd *cobra.Command, args []string) error {
 	// ── CVE summary ─────────────────────────────────────────────────────
 	var pkgsWithCVEs int
 	var totalCVEs sql.NullInt64
-	_ = raw.QueryRow(
-		`SELECT COUNT(*), SUM(json_extract(metadata, '$.cve_count'))
-		 FROM project_versions
-		 WHERE metadata != '' AND json_extract(metadata, '$.cve_count') > 0`,
-	).Scan(&pkgsWithCVEs, &totalCVEs)
+	if ecoFilter != "" {
+		_ = raw.QueryRow(
+			`SELECT COUNT(*), SUM(json_extract(pv.metadata, '$.cve_count'))
+			 FROM project_versions pv JOIN projects p ON p.id = pv.project_id
+			 WHERE pv.metadata != '' AND json_extract(pv.metadata, '$.cve_count') > 0 AND p.ecosystem = ?`, ecoFilter,
+		).Scan(&pkgsWithCVEs, &totalCVEs)
+	} else {
+		_ = raw.QueryRow(
+			`SELECT COUNT(*), SUM(json_extract(metadata, '$.cve_count'))
+			 FROM project_versions
+			 WHERE metadata != '' AND json_extract(metadata, '$.cve_count') > 0`,
+		).Scan(&pkgsWithCVEs, &totalCVEs)
+	}
 
 	fmt.Println()
 	fmt.Println("VULNERABILITIES")
@@ -628,9 +666,14 @@ func runIndexReport(cmd *cobra.Command, args []string) error {
 	}
 	var sevCounts cveSeverityCounts
 
-	sevRows, err := raw.Query(
-		`SELECT metadata FROM project_versions
-		 WHERE metadata != '' AND json_extract(metadata, '$.cve_count') > 0`)
+	sevQuery := `SELECT pv.metadata FROM project_versions pv`
+	if ecoFilter != "" {
+		sevQuery += ` JOIN projects p ON p.id = pv.project_id
+		 WHERE pv.metadata != '' AND json_extract(pv.metadata, '$.cve_count') > 0 AND p.ecosystem = ?`
+	} else {
+		sevQuery += ` WHERE pv.metadata != '' AND json_extract(pv.metadata, '$.cve_count') > 0`
+	}
+	sevRows, err := raw.Query(sevQuery, ecoArgs...)
 	if err == nil {
 		defer func() { _ = sevRows.Close() }()
 		for sevRows.Next() {
@@ -677,8 +720,7 @@ func runIndexReport(cmd *cobra.Command, args []string) error {
 		manifestCount int
 	}
 
-	riskyRows, err := raw.Query(
-		`SELECT
+	riskyQuery := `SELECT
 		   pv.project_id,
 		   pv.version_key,
 		   json_extract(pv.metadata, '$.score') as score,
@@ -686,11 +728,15 @@ func runIndexReport(cmd *cobra.Command, args []string) error {
 		   COALESCE(json_extract(pv.metadata, '$.cve_count'), 0) as cve_count,
 		   COUNT(DISTINCT mp.manifest_id) as manifest_count
 		 FROM project_versions pv
-		 JOIN manifest_packages mp ON mp.version_key = pv.version_key
-		 WHERE pv.metadata != '' AND pv.metadata != '{}'
-		 GROUP BY pv.version_key
-		 ORDER BY score ASC
-		 LIMIT 15`)
+		 JOIN manifest_packages mp ON mp.version_key = pv.version_key`
+	if ecoFilter != "" {
+		riskyQuery += ` JOIN projects p ON p.id = pv.project_id
+		 WHERE pv.metadata != '' AND pv.metadata != '{}' AND p.ecosystem = ?`
+	} else {
+		riskyQuery += ` WHERE pv.metadata != '' AND pv.metadata != '{}'`
+	}
+	riskyQuery += ` GROUP BY pv.version_key ORDER BY score ASC LIMIT 15`
+	riskyRows, err := raw.Query(riskyQuery, ecoArgs...)
 	if err == nil {
 		defer func() { _ = riskyRows.Close() }()
 
@@ -722,16 +768,20 @@ func runIndexReport(cmd *cobra.Command, args []string) error {
 	}
 
 	// ── Most vulnerable packages (by CVE count) ─────────────────────────
-	vulnRows, err := raw.Query(
-		`SELECT
-		   version_key,
-		   json_extract(metadata, '$.cve_count') as cve_count,
-		   json_extract(metadata, '$.score') as score,
-		   metadata
-		 FROM project_versions
-		 WHERE json_extract(metadata, '$.cve_count') > 0
-		 ORDER BY cve_count DESC
-		 LIMIT 10`)
+	vulnQuery := `SELECT
+		   pv.version_key,
+		   json_extract(pv.metadata, '$.cve_count') as cve_count,
+		   json_extract(pv.metadata, '$.score') as score,
+		   pv.metadata
+		 FROM project_versions pv`
+	if ecoFilter != "" {
+		vulnQuery += ` JOIN projects p ON p.id = pv.project_id
+		 WHERE json_extract(pv.metadata, '$.cve_count') > 0 AND p.ecosystem = ?`
+	} else {
+		vulnQuery += ` WHERE json_extract(pv.metadata, '$.cve_count') > 0`
+	}
+	vulnQuery += ` ORDER BY cve_count DESC LIMIT 10`
+	vulnRows, err := raw.Query(vulnQuery, ecoArgs...)
 	if err == nil {
 		defer func() { _ = vulnRows.Close() }()
 
@@ -814,19 +864,20 @@ func runIndexReport(cmd *cobra.Command, args []string) error {
 	}
 
 	// ── Most exposed manifests ──────────────────────────────────────────
-	exposedRows, err := raw.Query(
-		`SELECT
+	exposedQuery := `SELECT
 		   im.rel_path,
 		   COUNT(CASE WHEN json_extract(pv.metadata, '$.risk') IN ('CRITICAL', 'HIGH') THEN 1 END) as risky_count,
 		   MIN(json_extract(pv.metadata, '$.score')) as worst_score
 		 FROM index_manifests im
 		 JOIN manifest_packages mp ON mp.manifest_id = im.id
 		 JOIN project_versions pv ON pv.version_key = mp.version_key
-		 WHERE pv.metadata != '' AND pv.metadata != '{}'
-		 GROUP BY im.id
-		 HAVING risky_count > 0
-		 ORDER BY risky_count DESC, worst_score ASC
-		 LIMIT 15`)
+		 WHERE pv.metadata != '' AND pv.metadata != '{}'`
+	if ecoFilter != "" {
+		exposedQuery += ` AND im.ecosystem = ?`
+	}
+	exposedQuery += ` GROUP BY im.id HAVING risky_count > 0
+		 ORDER BY risky_count DESC, worst_score ASC LIMIT 15`
+	exposedRows, err := raw.Query(exposedQuery, ecoArgs...)
 	if err == nil {
 		defer func() { _ = exposedRows.Close() }()
 
