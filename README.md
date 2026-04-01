@@ -41,16 +41,21 @@ That's not a vulnerability. That's a **supply chain risk** — and it's the kind
 - **Risk path tracing** — shows the exact dependency chain leading to your weakest link
 - **CVE scanning** — queries OSV.dev for known vulnerabilities on every package
 - **Supply chain anomaly detection** — flags suspicious patterns (new+popular, dormant spike, no source repo)
+- **Full-machine supply chain index** — index every dependency on your machine with incremental re-indexing, global dedup, and full transitive dependency trees from lockfiles (npm, Cargo, Poetry, Composer)
+- **Compromised package scanner** — check for known-bad packages with semver range matching, dependency chain tracing, and instant queries from the index
+- **Risk enrichment** — add reputation scores and CVE data to every indexed package via registry + VCS + OSV lookups, resumable and cacheable
+- **Risk reporting** — comprehensive CLI reports with risk distribution charts, CVE summaries, ecosystem breakdowns, and most-exposed manifests, filterable by ecosystem
 - **Remote scanning** — scan GitHub/GitLab repos directly via API without cloning
 - **GitHub Actions scanning** — 5-layer deep analysis of CI/CD workflows: pinning quality, bundled code, transitive action deps
 - **Docker image scanning** — detects unpinned base images and scores official vs third-party images
 - **Script download detection** — flags curl|bash patterns in CI pipelines as CRITICAL risk
-- **Supply chain graph** — models the full dependency graph (packages, repos, actions, Docker images) with 176+ node types
+- **Supply chain graph** — models the full dependency graph (packages, repos, actions, Docker images) with 11 node types and 13 edge types
 - **Interactive TUI explorer** — navigate the supply chain graph with tree/flat views, search, filter, inspect, and path tracing
+- **Interactive index browser** — TUI for searching indexed packages with live filtering, dependency chain display, and score/risk coloring
 - **Incident response discovery** — find every project affected by a compromised package across your entire filesystem
 - **Org-wide scanning** — scan all repos in a GitHub organization in one command
 - **Multiple output formats** — text table, JSON, SARIF (for GitHub Security tab)
-- **Web UI** — dark-themed interactive dashboard with click-through package details
+- **Web UI** — dark-themed interactive dashboard with scan results, D3 graph visualization, and index search with risk dashboard
 - **Configurable profiles** — hobby, open source, enterprise thresholds
 
 ## Supply Chain Index: `index`
