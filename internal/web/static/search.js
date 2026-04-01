@@ -44,8 +44,154 @@ function loadStats() {
           ecoCard.appendChild(tag);
         });
       }
+
+      // Risk dashboard
+      renderRiskDashboard(data);
     })
     .catch(function() {});
+}
+
+function renderRiskDashboard(data) {
+  var container = document.getElementById('risk-dashboard');
+  if (!container) return;
+
+  var dist = data.risk_distribution;
+  var cve = data.cve_summary;
+  var risky = data.riskiest_packages;
+
+  // Only show if we have enrichment data.
+  if (!dist || dist.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'block';
+
+  // Clear previous content.
+  while (container.firstChild) container.removeChild(container.firstChild);
+
+  // ── Risk distribution bars ────────────────────────────────────
+  var riskSection = document.createElement('div');
+  riskSection.className = 'dashboard-section';
+
+  var riskTitle = document.createElement('h3');
+  riskTitle.className = 'dashboard-title';
+  riskTitle.textContent = 'Risk Distribution';
+  riskSection.appendChild(riskTitle);
+
+  var maxCount = 0;
+  dist.forEach(function(b) { if (b.count > maxCount) maxCount = b.count; });
+
+  var order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+  var sorted = dist.slice().sort(function(a, b) {
+    var ai = order.indexOf(a.risk); if (ai < 0) ai = 99;
+    var bi = order.indexOf(b.risk); if (bi < 0) bi = 99;
+    return ai - bi;
+  });
+
+  sorted.forEach(function(b) {
+    var row = document.createElement('div');
+    row.className = 'risk-bar-container';
+
+    var lbl = document.createElement('span');
+    lbl.className = 'risk-label';
+    lbl.textContent = b.risk;
+    row.appendChild(lbl);
+
+    var bar = document.createElement('div');
+    bar.className = 'risk-bar ' + (b.risk || '').toLowerCase();
+    var pct = maxCount > 0 ? (b.count / maxCount) * 100 : 0;
+    bar.style.width = Math.max(pct, 1) + '%';
+    row.appendChild(bar);
+
+    var cnt = document.createElement('span');
+    cnt.className = 'risk-count';
+    cnt.textContent = b.count.toLocaleString();
+    row.appendChild(cnt);
+
+    riskSection.appendChild(row);
+  });
+
+  container.appendChild(riskSection);
+
+  // ── CVE summary ───────────────────────────────────────────────
+  if (cve && (cve.packages_with_cves > 0 || cve.total_cves > 0)) {
+    var cveSection = document.createElement('div');
+    cveSection.className = 'dashboard-section';
+
+    var cveTitle = document.createElement('h3');
+    cveTitle.className = 'dashboard-title';
+    cveTitle.textContent = 'Vulnerabilities';
+    cveSection.appendChild(cveTitle);
+
+    var cveInfo = document.createElement('div');
+    cveInfo.className = 'cve-summary';
+
+    var pkgStat = document.createElement('span');
+    pkgStat.className = 'cve-stat';
+    pkgStat.textContent = cve.packages_with_cves + ' packages with CVEs';
+    cveInfo.appendChild(pkgStat);
+
+    var totalStat = document.createElement('span');
+    totalStat.className = 'cve-stat';
+    totalStat.textContent = cve.total_cves + ' total CVEs';
+    cveInfo.appendChild(totalStat);
+
+    cveSection.appendChild(cveInfo);
+    container.appendChild(cveSection);
+  }
+
+  // ── Top riskiest packages ─────────────────────────────────────
+  if (risky && risky.length > 0) {
+    var riskySection = document.createElement('div');
+    riskySection.className = 'dashboard-section';
+
+    var riskyTitle = document.createElement('h3');
+    riskyTitle.className = 'dashboard-title';
+    riskyTitle.textContent = 'Riskiest Packages';
+    riskySection.appendChild(riskyTitle);
+
+    risky.forEach(function(p) {
+      var row = document.createElement('div');
+      row.className = 'risky-pkg-row';
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', function() {
+        // Extract package name from version_key (e.g. "npm/axios@1.0.0" -> "axios").
+        var name = p.name;
+        var slashIdx = name.indexOf('/');
+        if (slashIdx >= 0) name = name.substring(slashIdx + 1);
+        var atIdx = name.indexOf('@');
+        if (atIdx > 0) name = name.substring(0, atIdx);
+        var input = document.getElementById('search-query');
+        if (input) { input.value = name; doSearch(); }
+      });
+
+      var scoreBadge = document.createElement('span');
+      scoreBadge.className = 'risky-score ' + (p.risk || '').toLowerCase();
+      scoreBadge.textContent = p.score;
+      row.appendChild(scoreBadge);
+
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'risky-name';
+      nameSpan.textContent = p.name;
+      row.appendChild(nameSpan);
+
+      if (p.cves > 0) {
+        var cveBadge = document.createElement('span');
+        cveBadge.className = 'risky-cve-badge';
+        cveBadge.textContent = p.cves + ' CVE' + (p.cves !== 1 ? 's' : '');
+        row.appendChild(cveBadge);
+      }
+
+      var mfCount = document.createElement('span');
+      mfCount.className = 'risky-manifest-count';
+      mfCount.textContent = p.manifests + ' manifest' + (p.manifests !== 1 ? 's' : '');
+      row.appendChild(mfCount);
+
+      riskySection.appendChild(row);
+    });
+
+    container.appendChild(riskySection);
+  }
 }
 
 function doSearch() {

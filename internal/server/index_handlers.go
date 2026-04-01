@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -78,7 +79,107 @@ func (s *Server) handleIndexStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, allStats)
+	// ── Risk distribution ────────────────────────────────────────────
+	type riskBucket struct {
+		Risk     string  `json:"risk"`
+		Count    int     `json:"count"`
+		AvgScore float64 `json:"avg_score"`
+	}
+	var riskDist []riskBucket
+
+	riskRows, rErr := db.DB().Query(
+		`SELECT json_extract(metadata, '$.risk') as risk, COUNT(*), AVG(json_extract(metadata, '$.score'))
+		 FROM project_versions WHERE metadata != '' AND metadata != '{}'
+		 GROUP BY risk ORDER BY AVG(json_extract(metadata, '$.score')) ASC`)
+	if rErr == nil {
+		defer func() { _ = riskRows.Close() }()
+		for riskRows.Next() {
+			var b riskBucket
+			var riskNull sql.NullString
+			var avgNull sql.NullFloat64
+			if err := riskRows.Scan(&riskNull, &b.Count, &avgNull); err != nil {
+				continue
+			}
+			if riskNull.Valid {
+				b.Risk = riskNull.String
+			} else {
+				b.Risk = "UNKNOWN"
+			}
+			if avgNull.Valid {
+				b.AvgScore = avgNull.Float64
+			}
+			riskDist = append(riskDist, b)
+		}
+	}
+
+	// ── CVE summary ─────────────────────────────────────────────────
+	type cveSummary struct {
+		PackagesWithCVEs int `json:"packages_with_cves"`
+		TotalCVEs        int `json:"total_cves"`
+	}
+	var cveSum cveSummary
+	var totalCVEsNull sql.NullInt64
+	_ = db.DB().QueryRow(
+		`SELECT COUNT(*), SUM(json_extract(metadata, '$.cve_count'))
+		 FROM project_versions WHERE metadata != '' AND json_extract(metadata, '$.cve_count') > 0`,
+	).Scan(&cveSum.PackagesWithCVEs, &totalCVEsNull)
+	if totalCVEsNull.Valid {
+		cveSum.TotalCVEs = int(totalCVEsNull.Int64)
+	}
+
+	// ── Top riskiest packages ───────────────────────────────────────
+	type riskyPkg struct {
+		Name      string `json:"name"`
+		Score     int    `json:"score"`
+		Risk      string `json:"risk"`
+		CVEs      int    `json:"cves"`
+		Manifests int    `json:"manifests"`
+	}
+	var riskiest []riskyPkg
+
+	rpRows, rpErr := db.DB().Query(
+		`SELECT
+		   pv.version_key,
+		   json_extract(pv.metadata, '$.score') as score,
+		   json_extract(pv.metadata, '$.risk') as risk,
+		   COALESCE(json_extract(pv.metadata, '$.cve_count'), 0) as cve_count,
+		   COUNT(DISTINCT mp.manifest_id) as manifest_count
+		 FROM project_versions pv
+		 JOIN manifest_packages mp ON mp.version_key = pv.version_key
+		 WHERE pv.metadata != '' AND pv.metadata != '{}'
+		 GROUP BY pv.version_key
+		 ORDER BY score ASC
+		 LIMIT 5`)
+	if rpErr == nil {
+		defer func() { _ = rpRows.Close() }()
+		for rpRows.Next() {
+			var p riskyPkg
+			var scoreNull sql.NullInt64
+			var riskNull sql.NullString
+			if err := rpRows.Scan(&p.Name, &scoreNull, &riskNull, &p.CVEs, &p.Manifests); err != nil {
+				continue
+			}
+			if scoreNull.Valid {
+				p.Score = int(scoreNull.Int64)
+			}
+			if riskNull.Valid {
+				p.Risk = riskNull.String
+			}
+			riskiest = append(riskiest, p)
+		}
+	}
+
+	resp := map[string]any{
+		"manifests":         allStats.Manifests,
+		"packages":          allStats.Packages,
+		"ecosystems":        allStats.Ecosystems,
+		"top_packages":      allStats.TopPackages,
+		"risk_distribution": riskDist,
+		"cve_summary":       cveSum,
+		"riskiest_packages": riskiest,
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleIndexSearch searches for packages (regular or compromised mode).
